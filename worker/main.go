@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
@@ -68,6 +69,26 @@ func (a *App) initResources(ctx context.Context) error {
 		a.logger.Warn("S3 bucket may already exist", "bucket", a.s3Bucket, "detail", err.Error())
 	} else {
 		a.logger.Info("S3 bucket created", "bucket", a.s3Bucket)
+	}
+
+	_, err = a.s3Client.PutBucketCors(ctx, &s3.PutBucketCorsInput{
+		Bucket: aws.String(a.s3Bucket),
+		CORSConfiguration: &s3types.CORSConfiguration{
+			CORSRules: []s3types.CORSRule{
+				{
+					AllowedOrigins: []string{"*"},
+					AllowedMethods: []string{"GET", "HEAD"},
+					AllowedHeaders: []string{"*"},
+					ExposeHeaders:  []string{"Content-Length", "Content-Range", "Content-Type"},
+					MaxAgeSeconds:  aws.Int32(3600),
+				},
+			},
+		},
+	})
+	if err != nil {
+		a.logger.Error("Failed to set CORS on S3 bucket", "error", err)
+	} else {
+		a.logger.Info("S3 bucket CORS policy applied")
 	}
 
 	// --- Create SQS Queue ---
