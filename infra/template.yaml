@@ -1,0 +1,386 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+    LiteStream — Ephemeral AWS infrastructure for VOD ingest, storage, and
+    CDN delivery. Includes a custom resource that empties the S3 bucket on
+    stack deletion to prevent BucketNotEmpty failures.
+
+# ===========================================================================
+#  PARAMETERS
+# ===========================================================================
+Parameters:
+    Environment:
+        Type: String
+        Default: demo
+        AllowedValues:
+            - demo
+            - staging
+            - production
+        Description: Deployment environment tag.
+
+# ===========================================================================
+#  RESOURCES
+# ===========================================================================
+Resources:
+    # -------------------------------------------------------------------------
+    #  1. SQS — VOD Ingest Queue
+    # -------------------------------------------------------------------------
+    VodIngestQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: VodIngestQueue
+            VisibilityTimeout: 120
+            MessageRetentionPeriod: 1209600 # 14 days
+            ReceiveMessageWaitTimeSeconds: 20 # Long-poll by default
+            Tags:
+                - Key: Project
+                  Value: LiteStream
+                - Key: Environment
+                  Value: !Ref Environment
+
+    # -------------------------------------------------------------------------
+    #  2. S3 — VOD Storage Bucket
+    # -------------------------------------------------------------------------
+    VodStorageBucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketEncryption:
+                ServerSideEncryptionConfiguration:
+                    - ServerSideEncryptionByDefault:
+                          SSEAlgorithm: AES256
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: true
+                BlockPublicPolicy: true
+                IgnorePublicAcls: true
+                RestrictPublicBuckets: true
+            CorsConfiguration:
+                CorsRules:
+                    - AllowedOrigins:
+                          - "*"
+                      AllowedMethods:
+                          - GET
+                          - HEAD
+                      AllowedHeaders:
+                          - "*"
+                      ExposedHeaders:
+                          - Content-Length
+                          - Content-Range
+                          - Content-Type
+                      MaxAge: 3600
+            LifecycleConfiguration:
+                Rules:
+                    - Id: ExpireIncompleteMultipartUploads
+                      Status: Enabled
+                      AbortIncompleteMultipartUpload:
+                          DaysAfterInitiation: 1
+            Tags:
+                - Key: Project
+                  Value: LiteStream
+                - Key: Environment
+                  Value: !Ref Environment
+
+    # S3 Bucket Policy — Allow CloudFront OAC read access only
+    VodStorageBucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref VodStorageBucket
+            PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Sid: AllowCloudFrontOACRead
+                      Effect: Allow
+                      Principal:
+                          Service: cloudfront.amazonaws.com
+                      Action: s3:GetObject
+                      Resource: !Sub "${VodStorageBucket.Arn}/*"
+                      Condition:
+                          StringEquals:
+                              AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${VodCDN}"
+
+    # -------------------------------------------------------------------------
+    #  3. CloudFront — CDN Distribution
+    # -------------------------------------------------------------------------
+    VodOriginAccessControl:
+        Type: AWS::CloudFront::OriginAccessControl
+        Properties:
+            OriginAccessControlConfig:
+                Name: !Sub "LiteStream-OAC-${Environment}"
+                Description: OAC for LiteStream VOD S3 bucket
+                OriginAccessControlOriginType: s3
+                SigningBehavior: always
+                SigningProtocol: sigv4
+
+    VodCDN:
+        Type: AWS::CloudFront::Distribution
+        Properties:
+            DistributionConfig:
+                Enabled: true
+                Comment: !Sub "LiteStream VOD CDN (${Environment})"
+                DefaultRootObject: ""
+                HttpVersion: http2and3
+                PriceClass: PriceClass_100 # US, Canada, Europe — cheapest tier
+
+                Origins:
+                    - Id: VodS3Origin
+                      DomainName: !GetAtt VodStorageBucket.RegionalDomainName
+                      OriginAccessControlId: !Ref VodOriginAccessControl
+                      S3OriginConfig:
+                          OriginAccessIdentity: ""
+
+                DefaultCacheBehavior:
+                    TargetOriginId: VodS3Origin
+                    ViewerProtocolPolicy: redirect-to-https
+                    AllowedMethods:
+                        - GET
+                        - HEAD
+                        - OPTIONS
+                    CachedMethods:
+                        - GET
+                        - HEAD
+                        - OPTIONS
+                    Compress: true
+                    CachePolicyId: !Ref VodCachePolicy
+                    ResponseHeadersPolicyId: !Ref VodCorsResponsePolicy
+
+            Tags:
+                - Key: Project
+                  Value: LiteStream
+                - Key: Environment
+                  Value: !Ref Environment
+
+    # Cache Policy — Optimized for HLS video streaming
+    VodCachePolicy:
+        Type: AWS::CloudFront::CachePolicy
+        Properties:
+            CachePolicyConfig:
+                Name: !Sub "LiteStream-VOD-CachePolicy-${Environment}"
+                Comment: "HLS-optimized: short TTL for manifests, long for segments"
+                DefaultTTL: 86400 # 24 hours — .ts segments are immutable
+                MinTTL: 0
+                MaxTTL: 31536000 # 1 year
+                ParametersInCacheKeyAndForwardedToOrigin:
+                    EnableAcceptEncodingGzip: true
+                    EnableAcceptEncodingBrotli: true
+                    HeadersConfig:
+                        HeaderBehavior: whitelist
+                        Headers:
+                            - Origin
+                            - Access-Control-Request-Method
+                            - Access-Control-Request-Headers
+                    CookiesConfig:
+                        CookieBehavior: none
+                    QueryStringsConfig:
+                        QueryStringBehavior: none
+
+    # Response Headers Policy — CORS for web players
+    VodCorsResponsePolicy:
+        Type: AWS::CloudFront::ResponseHeadersPolicy
+        Properties:
+            ResponseHeadersPolicyConfig:
+                Name: !Sub "LiteStream-CORS-Policy-${Environment}"
+                Comment: "Comprehensive CORS headers for HLS web players"
+                CorsConfig:
+                    AccessControlAllowOrigins:
+                        Items:
+                            - "*"
+                    AccessControlAllowMethods:
+                        Items:
+                            - GET
+                            - HEAD
+                            - OPTIONS
+                    AccessControlAllowHeaders:
+                        Items:
+                            - "*"
+                    AccessControlExposeHeaders:
+                        Items:
+                            - Content-Length
+                            - Content-Range
+                            - Content-Type
+                    AccessControlMaxAgeSec: 3600
+                    OriginOverride: true
+
+    # -------------------------------------------------------------------------
+    #  4. Lambda + Custom Resource — S3 Bucket Emptier on Stack Deletion
+    # -------------------------------------------------------------------------
+    BucketEmptierExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub "LiteStream-BucketEmptier-Role-${Environment}"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service: lambda.amazonaws.com
+                      Action: sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+            Policies:
+                - PolicyName: S3EmptierPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - s3:ListBucket
+                                - s3:ListBucketVersions
+                            Resource: !GetAtt VodStorageBucket.Arn
+                          - Effect: Allow
+                            Action:
+                                - s3:DeleteObject
+                                - s3:DeleteObjectVersion
+                            Resource: !Sub "${VodStorageBucket.Arn}/*"
+
+    BucketEmptierFunction:
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: !Sub "LiteStream-BucketEmptier-${Environment}"
+            Description: "Empties the VOD S3 bucket during CloudFormation stack deletion."
+            Runtime: nodejs20.x
+            Timeout: 300
+            MemorySize: 256
+            Role: !GetAtt BucketEmptierExecutionRole.Arn
+            Handler: index.handler
+            Code:
+                ZipFile: |
+                    const { S3Client, ListObjectsV2Command, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
+                    const https = require("https");
+                    const url = require("url");
+
+                    const s3 = new S3Client();
+
+                    async function emptyBucket(bucketName) {
+                      console.log(`Emptying bucket: ${bucketName}`);
+                      let continuationToken;
+                      let totalDeleted = 0;
+
+                      do {
+                        const listResp = await s3.send(
+                          new ListObjectsV2Command({
+                            Bucket: bucketName,
+                            ContinuationToken: continuationToken,
+                            MaxKeys: 1000,
+                          })
+                        );
+
+                        const objects = (listResp.Contents || []).map((obj) => ({ Key: obj.Key }));
+
+                        if (objects.length > 0) {
+                          await s3.send(
+                            new DeleteObjectsCommand({
+                              Bucket: bucketName,
+                              Delete: { Objects: objects, Quiet: true },
+                            })
+                          );
+                          totalDeleted += objects.length;
+                          console.log(`Deleted batch of ${objects.length} objects (total: ${totalDeleted})`);
+                        }
+
+                        continuationToken = listResp.IsTruncated ? listResp.NextContinuationToken : undefined;
+                      } while (continuationToken);
+
+                      console.log(`Bucket emptied. Total objects deleted: ${totalDeleted}`);
+                    }
+
+                    function sendResponse(event, context, status, data) {
+                      const responseBody = JSON.stringify({
+                        Status: status,
+                        Reason: `See CloudWatch Log Stream: ${context.logStreamName}`,
+                        PhysicalResourceId: context.logStreamName,
+                        StackId: event.StackId,
+                        RequestId: event.RequestId,
+                        LogicalResourceId: event.LogicalResourceId,
+                        Data: data || {},
+                      });
+
+                      const parsedUrl = url.parse(event.ResponseURL);
+                      const options = {
+                        hostname: parsedUrl.hostname,
+                        port: 443,
+                        path: parsedUrl.path,
+                        method: "PUT",
+                        headers: {
+                          "Content-Type": "",
+                          "Content-Length": responseBody.length,
+                        },
+                      };
+
+                      return new Promise((resolve, reject) => {
+                        const req = https.request(options, (res) => {
+                          console.log(`CFN response status: ${res.statusCode}`);
+                          resolve();
+                        });
+                        req.on("error", (err) => {
+                          console.error("sendResponse error:", err);
+                          reject(err);
+                        });
+                        req.write(responseBody);
+                        req.end();
+                      });
+                    }
+
+                    exports.handler = async (event, context) => {
+                      console.log("Event:", JSON.stringify(event, null, 2));
+
+                      try {
+                        if (event.RequestType === "Delete") {
+                          const bucketName = event.ResourceProperties.BucketName;
+                          await emptyBucket(bucketName);
+                        } else {
+                          console.log(`RequestType is ${event.RequestType} — no action needed.`);
+                        }
+                        await sendResponse(event, context, "SUCCESS");
+                      } catch (err) {
+                        console.error("Handler error:", err);
+                        await sendResponse(event, context, "FAILED", { Error: err.message });
+                      }
+                    };
+            Tags:
+                - Key: Project
+                  Value: LiteStream
+                - Key: Environment
+                  Value: !Ref Environment
+
+    # Custom Resource — Triggers the Lambda on stack lifecycle events
+    EmptyBucketOnDelete:
+        Type: Custom::EmptyS3Bucket
+        Properties:
+            ServiceToken: !GetAtt BucketEmptierFunction.Arn
+            BucketName: !Ref VodStorageBucket
+
+# ===========================================================================
+#  OUTPUTS
+# ===========================================================================
+Outputs:
+    VodIngestQueueUrl:
+        Description: SQS Queue URL for VOD ingest
+        Value: !GetAtt VodIngestQueue.QueueUrl
+        Export:
+            Name: !Sub "${AWS::StackName}-VodQueueUrl"
+
+    VodIngestQueueArn:
+        Description: SQS Queue ARN for IAM policies
+        Value: !GetAtt VodIngestQueue.Arn
+        Export:
+            Name: !Sub "${AWS::StackName}-VodQueueArn"
+
+    VodStorageBucketName:
+        Description: S3 bucket name for VOD storage
+        Value: !Ref VodStorageBucket
+        Export:
+            Name: !Sub "${AWS::StackName}-VodBucketName"
+
+    VodStorageBucketArn:
+        Description: S3 bucket ARN for IAM policies
+        Value: !GetAtt VodStorageBucket.Arn
+        Export:
+            Name: !Sub "${AWS::StackName}-VodBucketArn"
+
+    VodCDNDomainName:
+        Description: CloudFront distribution domain for VOD playback
+        Value: !GetAtt VodCDN.DomainName
+        Export:
+            Name: !Sub "${AWS::StackName}-VodCDNDomain"
+
+    VodPlaybackBaseUrl:
+        Description: Base URL for HLS playback via CDN
+        Value: !Sub "https://${VodCDN.DomainName}/vod"

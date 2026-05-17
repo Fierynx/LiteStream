@@ -1,0 +1,143 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+
+/* ═══ CUSTOM DESIGN TOKENS (Tailwind v4 @theme) ═══ */
+@theme {
+    /* ─── Surface palette: deep dark gaming aesthetic ─── */
+    --color-surface-950: #05050a;
+    --color-surface-900: #0a0a12;
+    --color-surface-850: #0e0e18;
+    --color-surface-800: #12121e;
+    --color-surface-750: #161625;
+    --color-surface-700: #1a1a2e;
+    --color-surface-600: #232340;
+    --color-surface-500: #2d2d52;
+    --color-surface-400: #3a3a6a;
+
+    /* ─── Neon accent palette ─── */
+    --color-neon-green: #39ff14;
+    --color-neon-lime: #00ff87;
+    --color-neon-purple: #9146ff;
+    --color-neon-violet: #bf5af2;
+    --color-neon-pink: #ff2d78;
+    --color-neon-cyan: #00e5ff;
+
+    /* ─── Neutral tones ─── */
+    --color-neutral-100: #f0f0f5;
+    --color-neutral-200: #d1d1dc;
+    --color-neutral-300: #ababbe;
+    --color-neutral-400: #8585a0;
+    --color-neutral-500: #606080;
+    --color-neutral-600: #3c3c58;
+
+    /* ─── Typography ─── */
+    --font-display: "Inter", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    /* ─── Neon glow shadows ─── */
+    --shadow-neon-green:
+        0 0 20px rgba(57, 255, 20, 0.3), 0 0 60px rgba(57, 255, 20, 0.1);
+    --shadow-neon-purple:
+        0 0 20px rgba(145, 70, 255, 0.3), 0 0 60px rgba(145, 70, 255, 0.1);
+    --shadow-neon-pink:
+        0 0 20px rgba(255, 45, 120, 0.3), 0 0 60px rgba(255, 45, 120, 0.1);
+    --shadow-glow: 0 0 40px rgba(57, 255, 20, 0.15);
+    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    /* ─── Animations ─── */
+    --animate-pulse-slow: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animate-glow-breathe: glow-breathe 2s ease-in-out infinite alternate;
+    --animate-slide-up: slide-up 0.3s ease-out;
+    --animate-fade-in: fade-in 0.5s ease-out;
+}
+
+/* ─── Keyframes ─── */
+@keyframes pulse-slow {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes glow-breathe {
+    0% {
+        box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);
+    }
+    100% {
+        box-shadow:
+            0 0 25px rgba(57, 255, 20, 0.5),
+            0 0 50px rgba(57, 255, 20, 0.15);
+    }
+}
+
+@keyframes slide-up {
+    0% {
+        transform: translateY(10px);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* ═══ BASE LAYER ═══ */
+@layer base {
+    :root {
+        font-family:
+            "Inter",
+            system-ui,
+            -apple-system,
+            sans-serif;
+        color-scheme: dark;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+    }
+
+    html,
+    body,
+    #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        background-color: var(--color-surface-950);
+        color: var(--color-neutral-100);
+        overflow: hidden;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 100px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+}
+
+/* ═══ UTILITY LAYER ═══ */
+@layer utilities {
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 4px;
+    }
+}
