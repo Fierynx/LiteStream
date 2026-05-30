@@ -214,7 +214,7 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {activeTab === 'logs' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg h-[600px] flex flex-col">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg h-[70vh] min-h-[400px] flex flex-col">
             <div className="flex space-x-2 mb-4">
               {['litestream_nginx', 'litestream_backend', 'litestream_worker', 'litestream_db', 'litestream_localstack'].map(container => (
                 <button
@@ -226,7 +226,7 @@ export const AdminDashboard: React.FC = () => {
                 </button>
               ))}
             </div>
-            <div className="flex-1 bg-black rounded-lg p-4 overflow-auto border border-zinc-800 font-mono text-sm text-green-400 whitespace-pre">
+            <div className="flex-1 bg-black rounded-lg p-4 overflow-auto border border-zinc-800 font-mono text-sm text-green-400 whitespace-pre-wrap break-all">
               {logs || 'Select a container to view logs...'}
             </div>
           </div>
