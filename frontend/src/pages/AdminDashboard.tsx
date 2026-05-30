@@ -232,7 +232,7 @@ export const AdminDashboard: React.FC = () => {
             {events.length > 0 && (
               <div className="mt-8 border-t border-zinc-800 pt-6">
                 <h3 className="font-bold mb-4 text-lg">Recent Stack Events</h3>
-                <div className="bg-black rounded-lg border border-zinc-800 overflow-x-auto">
+                <div className="bg-black rounded-lg border border-zinc-800 overflow-auto max-h-[500px]">
                   <table className="w-full text-sm text-left">
                     <thead className="bg-zinc-900 text-zinc-400 text-xs uppercase">
                       <tr>

@@ -17,7 +17,7 @@ export default function App() {
         <MiniPlayerProvider>
             <div className="flex flex-col h-screen w-screen bg-surface-950 text-neutral-100 font-display overflow-hidden">
                 <Navbar />
-                <main className="flex flex-col flex-1 min-h-0 relative">
+                <main className="flex flex-col flex-1 min-h-0 relative overflow-y-auto">
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/channel/:username" element={<ChannelProfile />} />
