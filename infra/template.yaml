@@ -196,6 +196,7 @@ Resources:
                             - Content-Range
                             - Content-Type
                     AccessControlMaxAgeSec: 3600
+                    AccessControlAllowCredentials: false
                     OriginOverride: true
 
     # -------------------------------------------------------------------------
