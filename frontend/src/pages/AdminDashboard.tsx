@@ -8,6 +8,7 @@ export const AdminDashboard: React.FC = () => {
   const [infraStatus, setInfraStatus] = useState<string>('UNKNOWN');
   const [activeTab, setActiveTab] = useState<'logs' | 'infra'>('infra');
   const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -51,6 +52,20 @@ export const AdminDashboard: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setInfraStatus(data.status);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/infra/events`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEvents(data);
       }
     } catch (err) {
       console.error(err);
@@ -183,6 +198,9 @@ export const AdminDashboard: React.FC = () => {
               <button onClick={checkInfraStatus} className="text-purple-400 hover:text-purple-300 text-sm underline">
                 Refresh
               </button>
+              <button onClick={fetchEvents} className="text-blue-400 hover:text-blue-300 text-sm underline">
+                View Stack Events
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-6">
@@ -210,6 +228,38 @@ export const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {events.length > 0 && (
+              <div className="mt-8 border-t border-zinc-800 pt-6">
+                <h3 className="font-bold mb-4 text-lg">Recent Stack Events</h3>
+                <div className="bg-black rounded-lg border border-zinc-800 overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-zinc-900 text-zinc-400 text-xs uppercase">
+                      <tr>
+                        <th className="px-4 py-3">Time</th>
+                        <th className="px-4 py-3">Resource</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800">
+                      {events.map((e, idx) => (
+                        <tr key={idx} className="hover:bg-zinc-900/50">
+                          <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{new Date(e.timestamp).toLocaleString()}</td>
+                          <td className="px-4 py-3 font-mono">{e.logical_resource_id}</td>
+                          <td className="px-4 py-3 text-zinc-400">{e.resource_type}</td>
+                          <td className={`px-4 py-3 font-bold ${e.resource_status.includes('FAILED') ? 'text-red-400' : e.resource_status.includes('COMPLETE') ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {e.resource_status}
+                          </td>
+                          <td className="px-4 py-3 text-red-300 max-w-md truncate" title={e.resource_status_reason}>{e.resource_status_reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

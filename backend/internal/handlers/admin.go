@@ -190,3 +190,38 @@ func (h *AdminHandler) InfraDeprovision(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deprovisioning started"})
 }
+
+func (h *AdminHandler) InfraEvents(c *gin.Context) {
+	stackName := "LiteStreamStack"
+	out, err := h.CFClient.DescribeStackEvents(context.Background(), &cloudformation.DescribeStackEventsInput{
+		StackName: aws.String(stackName),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	type Event struct {
+		Timestamp          time.Time `json:"timestamp"`
+		LogicalResourceId  string    `json:"logical_resource_id"`
+		ResourceType       string    `json:"resource_type"`
+		ResourceStatus     string    `json:"resource_status"`
+		ResourceStatusReason string  `json:"resource_status_reason"`
+	}
+
+	events := []Event{}
+	for _, e := range out.StackEvents {
+		reason := ""
+		if e.ResourceStatusReason != nil {
+			reason = *e.ResourceStatusReason
+		}
+		events = append(events, Event{
+			Timestamp:            *e.Timestamp,
+			LogicalResourceId:    *e.LogicalResourceId,
+			ResourceType:         *e.ResourceType,
+			ResourceStatus:       string(e.ResourceStatus),
+			ResourceStatusReason: reason,
+		})
+	}
+	c.JSON(http.StatusOK, events)
+}
