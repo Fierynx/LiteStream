@@ -35,6 +35,8 @@ interface ChatSidebarProps {
     mode: "live" | "replay";
     /** Current VOD playback time (seconds) — used in replay mode header */
     playbackTime?: number;
+    /** Provide the username of the channel owner to highlight their messages */
+    channelUsername?: string;
     /** Called when user submits a message (live mode only) */
     onSend?: (text: string) => void;
 }
@@ -57,16 +59,44 @@ export default function ChatSidebar({
     mode,
     playbackTime = 0,
     onSend,
+    channelUsername = "",
 }: ChatSidebarProps) {
     const [input, setInput] = useState("");
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [isScrolledUp, setIsScrolledUp] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+
     const isLiveMode = mode === "live";
     const isReplayMode = mode === "replay";
     const inputDisabled = !connected || streamStatus !== "live";
 
+    const handleScroll = () => {
+        if (!scrollContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+        
+        setIsScrolledUp(!atBottom);
+        if (atBottom) {
+            setUnreadCount(0);
+        }
+    };
+
+    // Auto-scroll logic
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (!isScrolledUp) {
+            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        } else {
+            setUnreadCount((prev) => prev + 1);
+        }
     }, [messages.length]);
+
+    // Force scroll to bottom on mount
+    useEffect(() => {
+        if (historyLoaded && !isScrolledUp) {
+            chatEndRef.current?.scrollIntoView();
+        }
+    }, [historyLoaded]);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -120,7 +150,33 @@ export default function ChatSidebar({
             </div>
 
             {/* ── Messages ── */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-thin min-h-0">
+            <div 
+                className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-thin min-h-0 relative"
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+            >
+                {/* Floating Chat Paused Button */}
+                {isScrolledUp && (
+                    <div className="sticky top-4 flex justify-center z-20 pointer-events-none mb-2">
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                setIsScrolledUp(false);
+                                setUnreadCount(0);
+                                chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                            }}
+                            className="pointer-events-auto bg-black/80 hover:bg-black text-white text-xs px-4 py-2 rounded-full border border-white/20 shadow-lg backdrop-blur-sm transition-all whitespace-nowrap flex items-center gap-2"
+                        >
+                            <span>Chat paused due to scroll</span>
+                            {unreadCount > 0 && (
+                                <span className="bg-neon-cyan text-black px-1.5 py-0.5 rounded-full text-[10px] font-bold">
+                                    {unreadCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                )}
+
                 {/* Skeleton while loading */}
                 {!historyLoaded && (
                     <div className="space-y-3 animate-pulse pt-2">
@@ -163,6 +219,13 @@ export default function ChatSidebar({
                         </p>
                     )}
 
+                {/* System Message */}
+                {historyLoaded && messages.length > 0 && (
+                    <div className="text-[12px] leading-relaxed animate-slide-up bg-surface-700/30 rounded-md px-3 py-2.5 border border-white/[0.05] text-neutral-400 !mb-4 mt-2">
+                        Welcome to the chat room! Be respectful and follow the rules.
+                    </div>
+                )}
+
                 {/* Message list */}
                 {(isLiveMode
                     ? messages
@@ -172,11 +235,16 @@ export default function ChatSidebar({
                 ).map((msg) => (
                     <div
                         key={msg.id}
-                        className="text-[13px] leading-relaxed animate-slide-up group/msg">
+                        className="text-[13px] leading-relaxed animate-slide-up group/msg hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors duration-150">
                         {/* Timestamp for replay */}
                         {isReplayMode && msg.videoOffset !== undefined && (
                             <span className="text-[10px] font-mono text-neutral-700 mr-1.5 tabular-nums">
                                 [{fmtTime(msg.videoOffset)}]
+                            </span>
+                        )}
+                        {msg.user === channelUsername && (
+                            <span className="mr-1 inline-flex items-center justify-center bg-[#E53E3E] text-white rounded text-[9px] font-bold px-1.5 py-0.5 uppercase tracking-wider translate-y-[-1px]">
+                                Broadcaster
                             </span>
                         )}
                         {msg.badge && (
@@ -195,6 +263,8 @@ export default function ChatSidebar({
                         </span>
                     </div>
                 ))}
+
+                <div ref={chatEndRef} className="h-2" />
 
                 {/* VOD progress bar */}
                 {isReplayMode && historyLoaded && messages.length > 0 && (
@@ -257,51 +327,71 @@ export default function ChatSidebar({
 
             {/* ── Input (live mode only) ── */}
             {isLiveMode && (
-                <div className="p-3 border-t border-white/[0.04] shrink-0">
-                    <form onSubmit={submit}>
-                        <div
-                            className={`relative rounded-xl border bg-surface-800/60 backdrop-blur-sm transition-all duration-300
-                            ${
-                                inputDisabled
-                                    ? "border-white/[0.04] opacity-50"
-                                    : "border-white/[0.06] focus-within:border-neon-green/30 focus-within:shadow-[0_0_16px_rgba(57,255,20,0.06)]"
-                            }`}>
-                            <input
-                                type="text"
-                                placeholder={
-                                    streamStatus !== "live"
-                                        ? "Chat is disabled while offline…"
-                                        : connected
-                                          ? "Send a message…"
-                                          : "Connecting…"
-                                }
-                                disabled={inputDisabled}
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                className="w-full bg-transparent px-4 py-3 pr-24 text-sm text-neutral-200 placeholder-neutral-600 outline-none"
-                            />
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    disabled={inputDisabled}
-                                    className="p-1.5 rounded-md text-neutral-500 hover:text-neutral-300 hover:bg-white/5 transition-all duration-200 disabled:pointer-events-none">
-                                    <SmilePlus size={16} />
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={inputDisabled}
-                                    className="p-1.5 rounded-md text-neutral-500 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all duration-200 disabled:pointer-events-none">
-                                    <Gift size={16} />
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={inputDisabled || !input.trim()}
-                                    className="p-1.5 rounded-md bg-neon-green/10 text-neon-green hover:bg-neon-green/20 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none">
-                                    <Send size={16} />
-                                </button>
-                            </div>
+                <div className="p-3 border-t border-white/[0.04] shrink-0 relative">
+                    {!localStorage.getItem("ls_token") ? (
+                        <div className="absolute inset-0 bg-surface-900/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4">
+                            <p className="text-xs text-neutral-400 mb-2 font-medium">You must be logged in to chat.</p>
+                            <button
+                                onClick={() => window.location.href = "/"}
+                                className="w-full bg-neon-green text-black font-bold text-[13px] rounded-lg py-2 hover:bg-neon-green/90 transition-all shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+                                Log in to chat
+                            </button>
                         </div>
-                    </form>
+                    ) : (
+                        <form onSubmit={submit}>
+                            <div
+                                className={`relative rounded-xl border bg-surface-800/60 backdrop-blur-sm transition-all duration-300
+                                ${
+                                    inputDisabled
+                                        ? "border-white/[0.04] opacity-50"
+                                        : "border-white/[0.06] focus-within:border-neon-green/30 focus-within:shadow-[0_0_16px_rgba(57,255,20,0.06)]"
+                                }`}>
+                                <input
+                                    type="text"
+                                    placeholder={
+                                        streamStatus !== "live"
+                                            ? "Chat is disabled while offline…"
+                                            : connected
+                                              ? "Send a message…"
+                                              : "Connecting…"
+                                    }
+                                    disabled={inputDisabled}
+                                    value={input}
+                                    maxLength={500}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    className="w-full bg-transparent px-4 pt-3 pb-7 text-sm text-neutral-200 placeholder-neutral-600 outline-none"
+                                />
+                                
+                                {/* Character count */}
+                                <div className="absolute right-3 bottom-1.5 flex items-center gap-1.5 pointer-events-none">
+                                    <span className={`text-[10px] font-mono ${input.length >= 480 ? "text-red-500 font-bold" : "text-neutral-600"}`}>
+                                        {input.length}/500
+                                    </span>
+                                </div>
+
+                                <div className="absolute right-2 top-2.5 flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        disabled={inputDisabled}
+                                        className="p-1.5 rounded-md text-neutral-500 hover:text-neutral-300 hover:bg-white/5 transition-all duration-200 disabled:pointer-events-none">
+                                        <SmilePlus size={16} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={inputDisabled}
+                                        className="p-1.5 rounded-md text-neutral-500 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all duration-200 disabled:pointer-events-none">
+                                        <Gift size={16} />
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={inputDisabled || !input.trim()}
+                                        className="p-1.5 rounded-md bg-neon-green/10 text-neon-green hover:bg-neon-green/20 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none">
+                                        <Send size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    )}
                 </div>
             )}
         </aside>

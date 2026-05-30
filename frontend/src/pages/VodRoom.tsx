@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import ViewingRoom from "../components/ViewingRoom";
 import type { ChatMsg } from "../components/ChatSidebar";
 
-const API = "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL;
 
 interface ApiChatMessage {
     ID: number;
@@ -31,7 +31,7 @@ export default function VodRoom() {
     const [chatLoaded, setChatLoaded] = useState(false);
     const [playbackTime, setPlaybackTime] = useState(0);
 
-    const vodSrc = `http://localhost:4566/vod-bucket/vod/${vodId}.m3u8`;
+    const [vodSrc, setVodSrc] = useState("");
 
     /* ── Mount fade-in ── */
     useEffect(() => {
@@ -44,18 +44,34 @@ export default function VodRoom() {
         axios
             .get<{ data: ChannelInfo[] }>(`${API}/streams`)
             .then(({ data }) => {
-                const match = (data.data ?? []).find(
-                    (s) => s.stream_key === vodId,
-                );
-                if (match) setChannel(match);
+                const list = data.data ?? [];
+                let match = list.find((s) => (s as any).vod_id === vodId);
+                if (!match) {
+                    match = list.find((s) => s.stream_key === vodId && s.status === "vod");
+                }
+
+                if (match) {
+                    setChannel(match);
+                    const vID = (match as any).vod_id || match.stream_key;
+                    setVodSrc(`${import.meta.env.VITE_VOD_URL_PREFIX}${vID}/${match.stream_key}.m3u8`);
+                } else {
+                    setVodSrc(`${import.meta.env.VITE_VOD_URL_PREFIX}${vodId}/${vodId}.m3u8`);
+                }
             })
-            .catch(() => {});
+            .catch(() => {
+                setVodSrc(`${import.meta.env.VITE_VOD_URL_PREFIX}${vodId}/${vodId}.m3u8`);
+            });
     }, [vodId]);
 
-    /* ── Fetch full chat history once ── */
+    /* ── Fetch full chat history once & Increment View ── */
     useEffect(() => {
+        if (!channel) return;
+        const vID = (channel as any).vod_id || channel.stream_key;
+        
+        axios.post(`${API}/streams/${vID}/view`).catch(() => {});
+        
         axios
-            .get<{ data: ApiChatMessage[] }>(`${API}/chat/${vodId}`)
+            .get<{ data: ApiChatMessage[] }>(`${API}/chat/${vID}`)
             .then(({ data }) => {
                 const msgs: ChatMsg[] = (data.data ?? []).map((r, i) => ({
                     id: i,
@@ -68,10 +84,14 @@ export default function VodRoom() {
             })
             .catch(() => {})
             .finally(() => setChatLoaded(true));
-    }, [vodId]);
+    }, [channel]);
 
-    const handleTimeUpdate = useCallback((t: number) => {
-        setPlaybackTime(t);
+    useEffect(() => {
+        const handleTime = (e: any) => {
+            setPlaybackTime(e.detail);
+        };
+        window.addEventListener("liteStreamTimeUpdate", handleTime);
+        return () => window.removeEventListener("liteStreamTimeUpdate", handleTime);
     }, []);
 
     return (
@@ -82,7 +102,6 @@ export default function VodRoom() {
                 videoSrc={vodSrc}
                 isLive={false}
                 streamStatus="vod"
-                onTimeUpdate={handleTimeUpdate}
                 /* Channel info */
                 channel={{
                     username: channel?.username ?? vodId,

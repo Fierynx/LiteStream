@@ -57,7 +57,7 @@ function VolumeSlider({
     );
 }
 
-/* ─── Progress/Scrubber bar (VOD only) ─── */
+/* ─── Premium Progress/Scrubber bar (VOD only) ─── */
 function Scrubber({
     currentTime,
     duration,
@@ -67,28 +67,88 @@ function Scrubber({
     duration: number;
     onSeek: (t: number) => void;
 }) {
-    const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+    const trackRef = useRef<HTMLDivElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [hoverPct, setHoverPct] = useState<number | null>(null);
 
-    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation();
-        const rect = e.currentTarget.getBoundingClientRect();
-        const ratio = (e.clientX - rect.left) / rect.width;
-        onSeek(ratio * duration);
+    const getPctFromEvent = (e: React.PointerEvent | PointerEvent) => {
+        if (!trackRef.current) return 0;
+        const rect = trackRef.current.getBoundingClientRect();
+        let val = (e.clientX - rect.left) / rect.width;
+        if (val < 0) val = 0;
+        if (val > 1) val = 1;
+        return val;
     };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        setIsDragging(true);
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        onSeek(getPctFromEvent(e) * duration);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        const pct = getPctFromEvent(e);
+        setHoverPct(pct * 100);
+        if (isDragging) {
+            onSeek(pct * duration);
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        if (isDragging) {
+            setIsDragging(false);
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            onSeek(getPctFromEvent(e) * duration);
+        }
+    };
+
+    const handlePointerLeave = () => {
+        setHoverPct(null);
+    };
+
+    const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+    const isHovering = hoverPct !== null || isDragging;
 
     return (
         <div
-            onClick={handleClick}
-            className="w-full h-1 bg-white/20 rounded-full cursor-pointer group/scrub relative hover:h-1.5 transition-all duration-100">
-            <div
-                className="absolute inset-y-0 left-0 bg-neon-green rounded-full transition-all duration-100"
-                style={{ width: `${pct}%` }}
-            />
-            {/* Thumb */}
-            <div
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white opacity-0 group-hover/scrub:opacity-100 transition-opacity duration-100 shadow-md"
-                style={{ left: `${pct}%` }}
-            />
+            className="w-full relative cursor-pointer group/scrub py-2"
+            ref={trackRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+        >
+            {/* The visual track */}
+            <div className={`w-full bg-white/20 rounded-full relative transition-all duration-150 ${isHovering ? "h-1.5" : "h-1"}`}>
+                {/* Hover progress / buffer (simulated) */}
+                {hoverPct !== null && (
+                    <div
+                        className="absolute inset-y-0 left-0 bg-white/30 rounded-full pointer-events-none"
+                        style={{ width: `${hoverPct}%` }}
+                    />
+                )}
+                {/* Main progress */}
+                <div
+                    className="absolute inset-y-0 left-0 bg-neon-green rounded-full pointer-events-none"
+                    style={{ width: `${pct}%` }}
+                />
+                {/* Thumb */}
+                <div
+                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-neon-green shadow-[0_0_10px_rgba(57,255,20,0.5)] pointer-events-none transition-[width,height,opacity,transform] duration-150 ${isHovering ? "w-3.5 h-3.5 opacity-100 scale-100" : "w-0 h-0 opacity-0 scale-50"}`}
+                    style={{ left: `${pct}%` }}
+                />
+            </div>
+            {/* Hover Tooltip */}
+            {hoverPct !== null && duration > 0 && (
+                <div
+                    className="absolute -top-7 -translate-x-1/2 bg-surface-800 text-white text-[11px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none border border-white/10 tabular-nums"
+                    style={{ left: `${hoverPct}%` }}
+                >
+                    {fmtTime((hoverPct / 100) * duration)}
+                </div>
+            )}
         </div>
     );
 }
@@ -160,8 +220,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         if (Hls.isSupported()) {
             hls = new Hls({
                 enableWorker: true,
-                lowLatencyMode: true,
+                lowLatencyMode: isLive,
                 backBufferLength: 30,
+                startPosition: isLive ? -1 : 0,
             });
             hls.loadSource(src);
             hls.attachMedia(video);

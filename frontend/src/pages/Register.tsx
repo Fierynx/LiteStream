@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Zap, User, Lock, Loader2, AlertCircle } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Register() {
     const { register } = useAuth();
@@ -44,9 +44,10 @@ export default function Register() {
                 <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-neon-purple/[0.06] rounded-full blur-3xl" />
             </div>
             <div className="relative w-full max-w-md animate-fade-in">
-                <div className="bg-surface-850/80 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-8 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
-                    <div className="flex items-center justify-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-purple to-neon-cyan flex items-center justify-center shadow-neon-purple">
+                <div className="bg-surface-900 border border-white/5 rounded-2xl p-8 shadow-glass">
+                    {/* Header */}
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="w-10 h-10 rounded bg-brand-primary flex items-center justify-center">
                             <Zap
                                 size={20}
                                 className="text-surface-950"
@@ -121,7 +122,7 @@ export default function Register() {
                             type="submit"
                             id="reg-submit"
                             disabled={loading}
-                            className="w-full py-3 rounded-xl bg-neon-purple text-white font-bold text-sm shadow-neon-purple hover:shadow-[0_0_30px_rgba(145,70,255,0.4)] hover:scale-[1.02] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            className="w-full py-3 rounded bg-brand-primary text-surface-950 font-bold text-sm hover:bg-[#45eb12] transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                             {loading && (
                                 <Loader2 size={16} className="animate-spin" />
                             )}

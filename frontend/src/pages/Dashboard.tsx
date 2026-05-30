@@ -11,17 +11,19 @@ import {
     Edit3,
     Save,
     Radio,
-    Film,
     ExternalLink,
-    LogOut,
     Loader2,
     UploadCloud,
     X,
     ImageIcon,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
+import { useChat } from "../hooks/useChat";
+import VideoPlayer from "../components/VideoPlayer";
+import ChatSidebar from "../components/ChatSidebar";
 
-const API = "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL;
 
 /* ─── Drag-and-drop thumbnail upload zone ─── */
 interface UploadZoneProps {
@@ -30,7 +32,7 @@ interface UploadZoneProps {
     token: string;
 }
 
-function ThumbnailUploadZone({
+export function ThumbnailUploadZone({
     currentUrl,
     onUploaded,
     token,
@@ -219,7 +221,8 @@ function ThumbnailUploadZone({
 
 /* ─── Dashboard ─── */
 export default function Dashboard() {
-    const { user, token, logout } = useAuth();
+    const { user, token, isLoading } = useAuth();
+    const { showToast } = useToast();
 
     const [keyVisible, setKeyVisible] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -233,8 +236,6 @@ export default function Dashboard() {
     const [streamStatus, setStreamStatus] = useState<
         "offline" | "live" | "vod"
     >("offline");
-
-    if (!user) return <Navigate to="/login" replace />;
 
     // Fetch current channel info on mount.
     useEffect(() => {
@@ -269,6 +270,22 @@ export default function Dashboard() {
         return () => clearInterval(iv);
     }, [user]);
 
+    const { messages, connected, historyLoaded, sendMessage } = useChat(
+        user?.streamKey ?? "",
+        "", // no vodId needed for live chat in dashboard
+        user?.username ?? "",
+    );
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="w-8 h-8 text-brand-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (!user) return <Navigate to="/login" replace />;
+
     const copyKey = () => {
         if (!user) return;
         navigator.clipboard.writeText(user.streamKey);
@@ -287,290 +304,156 @@ export default function Dashboard() {
             );
             setSettingsSaved(true);
             setSettingsDirty(false);
+            showToast("Stream info updated successfully!", "success");
             setTimeout(() => setSettingsSaved(false), 2500);
         } catch {
-            /* ignore */
+            showToast("Failed to update stream info.", "error");
         } finally {
             setSettingsSaving(false);
         }
     };
 
-    const statusBadge = {
-        live: {
-            label: "LIVE",
-            cls: "bg-red-500/10 border-red-500/30 text-red-400",
-        },
-        vod: {
-            label: "VOD",
-            cls: "bg-neon-cyan/10 border-neon-cyan/30 text-neon-cyan",
-        },
-        offline: {
-            label: "OFFLINE",
-            cls: "bg-surface-700/60 border-white/[0.06] text-neutral-500",
-        },
-    }[streamStatus];
-
     return (
-        <div className="flex flex-1 overflow-y-auto scrollbar-thin">
-            <div className="max-w-3xl w-full mx-auto px-5 py-8 space-y-6 animate-fade-in">
-                {/* ── Header ── */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-neutral-100">
-                            Creator Dashboard
-                        </h1>
-                        <p className="text-sm text-neutral-500 mt-0.5">
-                            Welcome back,{" "}
-                            <span className="text-neon-green font-semibold">
-                                {user.username}
+        <div className="flex h-full w-full overflow-hidden bg-[#0A0A0B]">
+            {/* Main Area: Stream Preview & Manager */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-8 lg:p-12">
+                <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h1 className="text-3xl font-black tracking-tight text-white">Stream Manager</h1>
+                            <p className="text-neutral-400 mt-2">Manage your stream, engage with chat, and monitor health.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold border ${streamStatus === "live" ? "bg-red-500/10 text-red-500 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-surface-800 text-neutral-500 border-white/10"}`}>
+                                {streamStatus === "live" && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />}
+                                {streamStatus === "live" ? "LIVE" : "OFFLINE"}
                             </span>
-                        </p>
+                        </div>
                     </div>
-                    <button
-                        onClick={logout}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-700/50 border border-white/[0.06] text-neutral-400 hover:text-red-400 hover:border-red-500/20 text-sm transition-all duration-200">
-                        <LogOut size={14} />
-                        Sign out
-                    </button>
-                </div>
 
-                {/* ── Status Card ── */}
-                <div className="bg-surface-850/80 backdrop-blur-sm border border-white/[0.04] rounded-2xl p-6">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div>
-                            <p className="text-xs uppercase tracking-widest text-neutral-600 font-bold mb-1">
-                                Channel Status
-                            </p>
-                            <div className="flex items-center gap-2">
-                                {streamStatus === "live" && (
-                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    {/* Grid Layout */}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                        {/* Video Player & Settings (Left / Top 2 cols) */}
+                        <div className="xl:col-span-2 space-y-8">
+                            {/* Live Preview */}
+                            <div className="bg-black border border-white/[0.06] rounded-2xl overflow-hidden aspect-video relative group shadow-2xl">
+                                {streamStatus === "live" ? (
+                                    <div className="w-full h-full pointer-events-none">
+                                        <VideoPlayer src={`${import.meta.env.VITE_HLS_URL_PREFIX}${user.streamKey}.m3u8`} isLive={true} />
+                                    </div>
+                                ) : (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-850 text-neutral-500">
+                                        <div className="w-16 h-16 rounded-full bg-surface-800 flex items-center justify-center mb-4">
+                                            <Radio size={24} className="opacity-50" />
+                                        </div>
+                                        <p className="font-bold text-neutral-300 text-lg">Stream is Offline</p>
+                                        <p className="text-sm mt-2 text-center max-w-sm">Start streaming from OBS to see your live preview here.</p>
+                                    </div>
                                 )}
-                                <span
-                                    className={`text-xs font-bold px-2.5 py-1 rounded-full border ${statusBadge.cls}`}>
-                                    {statusBadge.label}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                            {streamStatus === "live" && (
-                                <Link
-                                    to={`/live/${user.username}`}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/10 border border-red-500/20 text-red-400 text-sm font-bold hover:bg-red-600/20 transition-all duration-200">
-                                    <Radio size={13} />
-                                    View Live
-                                    <ExternalLink size={11} />
-                                </Link>
-                            )}
-                            {streamStatus === "vod" && (
-                                <Link
-                                    to={`/vod/${user.streamKey}`}
-                                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan text-sm font-bold hover:bg-neon-cyan/20 transition-all duration-200">
-                                    <Film size={13} />
-                                    Watch VOD
-                                    <ExternalLink size={11} />
-                                </Link>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── OBS Setup ── */}
-                <div className="bg-surface-850/80 backdrop-blur-sm border border-white/[0.04] rounded-2xl p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="w-7 h-7 rounded-lg bg-neon-green/10 border border-neon-green/20 flex items-center justify-center">
-                            <Key size={14} className="text-neon-green" />
-                        </div>
-                        <h2 className="font-bold text-neutral-200">
-                            OBS / Stream Setup
-                        </h2>
-                    </div>
-
-                    <div className="space-y-3">
-                        {/* RTMP URL */}
-                        <div>
-                            <p className="text-xs text-neutral-600 uppercase tracking-widest font-bold mb-1.5">
-                                RTMP Server
-                            </p>
-                            <div className="flex items-center gap-2 bg-surface-800/60 border border-white/[0.04] rounded-xl px-4 py-2.5">
-                                <code className="text-sm text-neutral-300 font-mono flex-1">
-                                    rtmp://localhost/live
-                                </code>
-                            </div>
-                        </div>
-
-                        {/* Stream Key */}
-                        <div>
-                            <p className="text-xs text-neutral-600 uppercase tracking-widest font-bold mb-1.5">
-                                Stream Key
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-2 bg-surface-800/60 border border-white/[0.04] rounded-xl px-4 py-2.5 flex-1">
-                                    <Zap
-                                        size={13}
-                                        className="text-neon-green shrink-0"
-                                    />
-                                    <code className="text-sm font-mono flex-1 text-neutral-300 select-all">
-                                        {keyVisible
-                                            ? user.streamKey
-                                            : "live_" + "•".repeat(28)}
-                                    </code>
+                                {/* Overlay "Live Preview" Badge */}
+                                <div className="absolute top-4 left-4 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    Live Preview
                                 </div>
-                                <button
-                                    id="toggle-key"
-                                    onClick={() => setKeyVisible((v) => !v)}
-                                    title={keyVisible ? "Hide" : "Reveal"}
-                                    className="p-2.5 rounded-xl bg-surface-700/50 border border-white/[0.06] text-neutral-400 hover:text-neutral-200 transition-all duration-200">
-                                    {keyVisible ? (
-                                        <EyeOff size={16} />
-                                    ) : (
-                                        <Eye size={16} />
-                                    )}
-                                </button>
-                                <button
-                                    id="copy-key"
-                                    onClick={copyKey}
-                                    title="Copy to clipboard"
-                                    className="p-2.5 rounded-xl bg-surface-700/50 border border-white/[0.06] text-neutral-400 hover:text-neon-green hover:border-neon-green/20 transition-all duration-200">
-                                    {copied ? (
-                                        <Check
-                                            size={16}
-                                            className="text-neon-green"
-                                        />
-                                    ) : (
-                                        <Copy size={16} />
-                                    )}
-                                </button>
                             </div>
-                            <p className="text-[11px] text-neutral-600 mt-1.5 ml-1">
-                                🔒 Keep this private. NGINX will reject any OBS
-                                connection that uses an unknown key.
-                            </p>
-                        </div>
-                    </div>
-                </div>
 
-                {/* ── Channel Settings ── */}
-                <div className="bg-surface-850/80 backdrop-blur-sm border border-white/[0.04] rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-5">
-                        <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-neon-cyan/10 border border-neon-cyan/20 flex items-center justify-center">
-                                <Edit3 size={14} className="text-neon-cyan" />
+                            {/* Stream Settings Widget */}
+                            <div className="bg-surface-850/80 backdrop-blur-md border border-white/[0.04] rounded-2xl p-6 shadow-xl">
+                                <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/[0.04]">
+                                    <h2 className="font-bold text-neutral-200 flex items-center gap-2">
+                                        <Edit3 size={18} className="text-neon-cyan" /> Edit Stream Info
+                                    </h2>
+                                    <button
+                                        onClick={saveSettings}
+                                        disabled={!settingsDirty || settingsSaving}
+                                        className="flex items-center gap-2 px-4 py-2 bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20 font-bold rounded-xl text-sm hover:bg-neon-cyan/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                                        {settingsSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                        {settingsSaved ? "Saved!" : "Save Updates"}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs uppercase tracking-widest text-neutral-500 font-bold mb-2 block">Stream Title</label>
+                                            <textarea
+                                                value={title}
+                                                onChange={e => { setTitle(e.target.value); setSettingsDirty(true); }}
+                                                className="w-full h-24 bg-surface-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 outline-none resize-none transition-all"
+                                                placeholder="What are we playing today?"
+                                            />
+                                        </div>
+                                        <div className="bg-surface-800/40 border border-white/[0.04] rounded-xl p-4">
+                                            <p className="text-xs text-neutral-400 mb-2">Public URL:</p>
+                                            <Link to={`/live/${user.username}`} className="text-neon-green hover:underline font-mono text-sm break-all flex items-center gap-1">
+                                                {import.meta.env.VITE_FRONTEND_URL}/live/{user.username} <ExternalLink size={12} />
+                                            </Link>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <ThumbnailUploadZone currentUrl={thumbnailUrl} token={token ?? ""} onUploaded={(url) => { setThumbnailUrl(url); setSettingsDirty(true); }} />
+                                    </div>
+                                </div>
                             </div>
-                            <h2 className="font-bold text-neutral-200">
-                                Channel Settings
-                            </h2>
-                        </div>
-                        <button
-                            id="save-settings"
-                            onClick={saveSettings}
-                            disabled={!settingsDirty || settingsSaving}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan text-sm font-bold hover:bg-neon-cyan/20 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed">
-                            {settingsSaving ? (
-                                <Loader2 size={14} className="animate-spin" />
-                            ) : settingsSaved ? (
-                                <Check size={14} />
-                            ) : (
-                                <Save size={14} />
-                            )}
-                            {settingsSaved ? "Saved!" : "Save Changes"}
-                        </button>
-                    </div>
-
-                    <div className="space-y-5">
-                        {/* Stream Title */}
-                        <div>
-                            <p className="text-xs text-neutral-600 uppercase tracking-widest font-bold mb-1.5">
-                                Stream Title
-                            </p>
-                            <input
-                                id="stream-title"
-                                type="text"
-                                value={title}
-                                onChange={(e) => {
-                                    setTitle(e.target.value);
-                                    setSettingsDirty(true);
-                                }}
-                                placeholder="Enter your stream title…"
-                                className="w-full bg-surface-800/60 border border-white/[0.06] rounded-xl px-4 py-2.5 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-neon-cyan/40 focus:shadow-[0_0_12px_rgba(0,229,255,0.06)] transition-all duration-200"
-                            />
                         </div>
 
-                        {/* Thumbnail Upload */}
-                        <ThumbnailUploadZone
-                            currentUrl={thumbnailUrl}
-                            token={token ?? ""}
-                            onUploaded={(url) => {
-                                setThumbnailUrl(url);
-                                setSettingsDirty(true);
-                            }}
-                        />
+                        {/* Stream Key & OBS Setup (Right / Bottom 1 col) */}
+                        <div className="space-y-8">
+                            <div className="bg-surface-850/80 backdrop-blur-md border border-white/[0.04] rounded-2xl p-6 shadow-xl">
+                                <h2 className="font-bold text-neutral-200 mb-6 flex items-center gap-2 pb-4 border-b border-white/[0.04]">
+                                    <Key size={18} className="text-neon-green" /> Stream Setup
+                                </h2>
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="text-xs uppercase tracking-widest text-neutral-500 font-bold mb-2 block">RTMP Server</label>
+                                        <div className="bg-surface-900/50 border border-white/10 rounded-xl px-4 py-3 flex items-center">
+                                            <code className="text-sm text-neutral-300 font-mono flex-1 select-all">{import.meta.env.VITE_RTMP_INGEST_URL}</code>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs uppercase tracking-widest text-neutral-500 font-bold mb-2 block">Stream Key</label>
+                                        <div className="flex items-center gap-2">
+                                            <code className="flex-1 bg-surface-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-neutral-300 font-mono break-all line-clamp-1 select-all">
+                                                {keyVisible ? user.streamKey : "live_" + "•".repeat(28)}
+                                            </code>
+                                            <button onClick={() => setKeyVisible(!keyVisible)} className="p-3 bg-surface-800 rounded-xl hover:bg-surface-700 transition-colors border border-white/5">
+                                                {keyVisible ? <EyeOff size={16} className="text-neutral-400" /> : <Eye size={16} className="text-neutral-400" />}
+                                            </button>
+                                            <button onClick={copyKey} className="p-3 bg-surface-800 rounded-xl hover:text-neon-green transition-colors border border-white/5">
+                                                {copied ? <Check size={16} className="text-neon-green" /> : <Copy size={16} className="text-neutral-400" />}
+                                            </button>
+                                        </div>
+                                        <p className="text-[11px] text-neutral-600 mt-2">🔒 Keep this private. Never show this on stream.</p>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <p className="text-xs text-neutral-600">
-                            Public channel URL:{" "}
-                            <Link
-                                to={`/live/${user.username}`}
-                                className="text-neon-green hover:underline font-mono">
-                                /live/{user.username}
-                            </Link>
-                        </p>
+                            <div className="bg-surface-850/80 backdrop-blur-md border border-white/[0.04] rounded-2xl p-6 shadow-xl">
+                                <h2 className="font-bold text-neutral-200 mb-4 flex items-center gap-2 pb-4 border-b border-white/[0.04]">
+                                    <Zap size={18} className="text-brand-secondary" /> Quick Start Guide
+                                </h2>
+                                <ol className="space-y-3 text-sm text-neutral-400">
+                                    <li className="flex gap-2"><span className="text-brand-secondary font-bold">1.</span> Open OBS → Settings → Stream</li>
+                                    <li className="flex gap-2"><span className="text-brand-secondary font-bold">2.</span> Set Service to Custom</li>
+                                    <li className="flex gap-2"><span className="text-brand-secondary font-bold">3.</span> Paste RTMP Server & Key</li>
+                                    <li className="flex gap-2"><span className="text-brand-secondary font-bold">4.</span> Click Start Streaming</li>
+                                </ol>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                {/* ── Quick Start ── */}
-                <div className="bg-surface-800/40 border border-white/[0.04] rounded-2xl p-5">
-                    <p className="text-xs text-neutral-600 uppercase tracking-widest font-bold mb-3">
-                        Quick Start
-                    </p>
-                    <ol className="space-y-2 text-sm text-neutral-400">
-                        <li className="flex gap-2">
-                            <span className="text-neon-green font-bold">
-                                1.
-                            </span>{" "}
-                            Open OBS → Settings → Stream
-                        </li>
-                        <li className="flex gap-2">
-                            <span className="text-neon-green font-bold">
-                                2.
-                            </span>{" "}
-                            Set{" "}
-                            <strong className="text-neutral-300">
-                                Service
-                            </strong>{" "}
-                            to <code className="text-neon-cyan">Custom</code>
-                        </li>
-                        <li className="flex gap-2">
-                            <span className="text-neon-green font-bold">
-                                3.
-                            </span>{" "}
-                            Set{" "}
-                            <strong className="text-neutral-300">Server</strong>{" "}
-                            to{" "}
-                            <code className="text-neon-cyan">
-                                rtmp://localhost/live
-                            </code>
-                        </li>
-                        <li className="flex gap-2">
-                            <span className="text-neon-green font-bold">
-                                4.
-                            </span>{" "}
-                            Paste your Stream Key above into the{" "}
-                            <strong className="text-neutral-300">
-                                Stream Key
-                            </strong>{" "}
-                            field
-                        </li>
-                        <li className="flex gap-2">
-                            <span className="text-neon-green font-bold">
-                                5.
-                            </span>{" "}
-                            Click{" "}
-                            <strong className="text-neutral-300">
-                                Start Streaming
-                            </strong>{" "}
-                            — your channel goes live automatically!
-                        </li>
-                    </ol>
-                </div>
+            {/* Chat Panel (Right Sidebar) */}
+            <div className="hidden lg:block h-full shrink-0 shadow-2xl z-10">
+                <ChatSidebar
+                    messages={messages}
+                    connected={connected}
+                    historyLoaded={historyLoaded}
+                    onSend={sendMessage}
+                    mode="live"
+                    streamStatus={streamStatus}
+                    channelUsername={user.username}
+                />
             </div>
         </div>
     );

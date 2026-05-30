@@ -25,53 +25,24 @@ fi
 
 echo "[notify_vod] Stream '${STREAM_KEY}' ended."
 
-# ─── 1. Notify Go Backend to Update DB Status ────────────────────────────────
+# ─── 1. Notify Go Backend to Update DB Status and Send SQS ───────────────────
 echo "[notify_vod] Updating stream status to 'vod' in database..."
-DB_HTTP_STATUS=$(curl \
+curl_out=$(curl \
     --silent \
-    --output /dev/null \
-    --write-out "%{http_code}" \
+    --write-out "|%{http_code}" \
     --request POST \
     --url "${BACKEND_ENDPOINT}/stream/end" \
     --header "Content-Type: application/json" \
     --data "{\"stream_key\":\"${STREAM_KEY}\"}")
 
+DB_HTTP_STATUS=$(echo "${curl_out}" | awk -F '|' '{print $2}')
+JSON_RES=$(echo "${curl_out}" | awk -F '|' '{print $1}')
+
 if [ "${DB_HTTP_STATUS}" = "200" ]; then
-    echo "[notify_vod] SUCCESS: Database status updated to 'vod'."
+    echo "[notify_vod] SUCCESS: Database status updated to 'vod' and SQS message enqueued."
 else
-    echo "[notify_vod] WARNING: Backend returned HTTP ${DB_HTTP_STATUS}. DB update may have failed." >&2
-fi
-
-# ─── Build the SQS queue URL ─────────────────────────────────────────────────
-QUEUE_URL="${LOCALSTACK_ENDPOINT}/${ACCOUNT_ID}/${QUEUE_NAME}"
-
-# ─── URL-encode the message body ─────────────────────────────────────────────
-# The SQS Query API requires form-encoded parameters.
-MESSAGE_BODY="${STREAM_KEY}.m3u8"
-
-# ─── 2. Send SQS SendMessage via the Query API using curl ────────────────────
-echo "[notify_vod] Notifying VOD queue..."
-HTTP_STATUS=$(curl \
-    --silent \
-    --output /tmp/sqs_response.xml \
-    --write-out "%{http_code}" \
-    --request POST \
-    --url "${QUEUE_URL}" \
-    --header "Content-Type: application/x-www-form-urlencoded" \
-    --data-urlencode "Action=SendMessage" \
-    --data-urlencode "MessageBody=${MESSAGE_BODY}" \
-    --data-urlencode "Version=2012-11-05")
-
-# ─── Verify response ─────────────────────────────────────────────────────────
-if [ "${HTTP_STATUS}" = "200" ]; then
-    MSG_ID=$(grep -o '<MessageId>[^<]*</MessageId>' /tmp/sqs_response.xml | sed 's/<[^>]*>//g')
-    echo "[notify_vod] SUCCESS: Message enqueued. MessageId=${MSG_ID} Stream=${MESSAGE_BODY}"
-else
-    echo "[notify_vod] ERROR: SQS returned HTTP ${HTTP_STATUS}. Response:" >&2
-    cat /tmp/sqs_response.xml >&2
-    rm -f /tmp/sqs_response.xml
+    echo "[notify_vod] WARNING: Backend returned HTTP ${DB_HTTP_STATUS}. DB update or SQS may have failed. Response: ${JSON_RES}" >&2
     exit 1
 fi
 
-rm -f /tmp/sqs_response.xml
 exit 0

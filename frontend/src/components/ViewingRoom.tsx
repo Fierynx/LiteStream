@@ -1,8 +1,9 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Tv, Video } from "lucide-react";
-import VideoPlayer from "./VideoPlayer";
 import ChannelInfoBar, { type ChannelInfoProps } from "./ChannelInfoBar";
 import ChatSidebar, { type ChatMsg } from "./ChatSidebar";
+import { useMiniPlayer } from "../contexts/MiniPlayerContext";
 
 /* ─── Types ─── */
 interface ViewingRoomProps {
@@ -13,7 +14,6 @@ interface ViewingRoomProps {
     viewerCount?: number;
     /** Link to redirect when status === "vod" (live→vod redirect card) */
     vodRedirectKey?: string;
-    onTimeUpdate?: (t: number) => void;
 
     /* Channel info bar */
     channel: ChannelInfoProps;
@@ -35,7 +35,6 @@ export default function ViewingRoom({
     streamStatus,
     viewerCount,
     vodRedirectKey,
-    onTimeUpdate,
     channel,
     chatMode,
     chatMessages,
@@ -45,10 +44,55 @@ export default function ViewingRoom({
     playbackTime = 0,
     onSend,
 }: ViewingRoomProps) {
+    const { playStream, setMinimized, setPlaceholderRect } = useMiniPlayer();
+    const placeholderRef = useRef<HTMLDivElement>(null);
+
+    // Track placeholder position
+    useEffect(() => {
+        const updateRect = () => {
+            if (placeholderRef.current) {
+                setPlaceholderRect(placeholderRef.current.getBoundingClientRect());
+            }
+        };
+
+        if (placeholderRef.current) {
+            const observer = new ResizeObserver(updateRect);
+            observer.observe(placeholderRef.current);
+            window.addEventListener("scroll", updateRect, true);
+            updateRect();
+            
+            return () => {
+                observer.disconnect();
+                window.removeEventListener("scroll", updateRect, true);
+                setPlaceholderRect(null);
+            };
+        }
+    }, [streamStatus, isLive]);
+
+    // Handle stream playback lifecycle
+    useEffect(() => {
+        if (streamStatus === "live" || (!isLive && streamStatus !== "offline")) {
+            playStream({
+                src: videoSrc,
+                url: window.location.pathname,
+                isLive,
+                viewerCount,
+                title: channel.title,
+                username: channel.username,
+            });
+            setMinimized(false);
+        }
+        
+        return () => {
+            // Unmount -> auto-minimize if playing
+            setMinimized(true);
+        };
+    }, [videoSrc, isLive, streamStatus, channel.title, channel.username]);
+
     return (
         <div className="flex h-full w-full min-h-0">
             {/* ═══ LEFT: Video column ═══ */}
-            <main className="flex-1 flex flex-col min-w-0 overflow-y-auto scrollbar-thin">
+            <main id="viewing-room-scroll" className="flex-1 flex flex-col min-w-0 overflow-y-auto scrollbar-thin">
                 {/* Back breadcrumb */}
                 <div className="px-4 pt-3 pb-2 shrink-0">
                     <Link
@@ -64,14 +108,9 @@ export default function ViewingRoom({
 
                 {/* ── Video slot ── */}
                 <div className="px-4 shrink-0">
-                    {streamStatus === "live" ? (
-                        /* Live player */
-                        <VideoPlayer
-                            src={videoSrc}
-                            isLive={true}
-                            viewerCount={viewerCount}
-                            onTimeUpdate={onTimeUpdate}
-                        />
+                    {streamStatus === "live" || (!isLive && streamStatus !== "offline") ? (
+                        /* Placeholder for GlobalVideoPlayer */
+                        <div ref={placeholderRef} className="w-full aspect-video rounded-xl bg-surface-900 border border-white/[0.04]" />
                     ) : streamStatus === "vod" && isLive ? (
                         /* Live page but stream ended — redirect to VOD */
                         <div className="relative w-full aspect-video rounded-xl bg-surface-900 border border-white/[0.04] flex flex-col items-center justify-center text-center p-6">
@@ -89,19 +128,11 @@ export default function ViewingRoom({
                             {vodRedirectKey && (
                                 <Link
                                     to={`/vod/${vodRedirectKey}`}
-                                    className="mt-5 px-5 py-2.5 rounded-lg bg-neon-cyan text-surface-950 font-bold text-sm
-                                               hover:shadow-[0_0_28px_rgba(0,229,255,0.35)] hover:scale-[1.03] transition-all duration-300">
+                                    className="mt-5 px-5 py-2.5 rounded-lg bg-neon-cyan text-sm font-bold text-surface-950 uppercase shrink-0 hover:bg-neutral-200 transition-all duration-300">
                                     Watch VOD Replay
                                 </Link>
                             )}
                         </div>
-                    ) : !isLive ? (
-                        /* VOD player */
-                        <VideoPlayer
-                            src={videoSrc}
-                            isLive={false}
-                            onTimeUpdate={onTimeUpdate}
-                        />
                     ) : (
                         /* Offline — stream not started yet */
                         <div className="relative w-full aspect-video rounded-xl bg-surface-900 border border-white/[0.04] flex flex-col items-center justify-center text-center p-6">

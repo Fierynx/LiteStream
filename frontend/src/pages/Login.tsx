@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Zap, User, Lock, Loader2, AlertCircle } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
     const { login } = useAuth();
@@ -35,10 +35,10 @@ export default function Login() {
 
             <div className="relative w-full max-w-md animate-fade-in">
                 {/* Card */}
-                <div className="bg-surface-850/80 backdrop-blur-xl border border-white/[0.06] rounded-2xl p-8 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
-                    {/* Logo */}
-                    <div className="flex items-center justify-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-green to-neon-cyan flex items-center justify-center shadow-neon-green">
+                <div className="bg-surface-900 border border-white/5 rounded-2xl p-8 shadow-glass">
+                    {/* Header */}
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="w-10 h-10 rounded bg-brand-primary flex items-center justify-center">
                             <Zap
                                 size={20}
                                 className="text-surface-950"
@@ -72,7 +72,7 @@ export default function Login() {
                                 onChange={(e) => setUsername(e.target.value)}
                                 required
                                 autoComplete="username"
-                                className="w-full bg-surface-800/70 border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-neon-green/40 focus:shadow-[0_0_15px_rgba(57,255,20,0.06)] transition-all duration-200"
+                                className="w-full bg-surface-800 border border-white/5 rounded pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-brand-primary/40 focus:ring-1 focus:ring-brand-primary/20 transition-all duration-200"
                             />
                         </div>
 
@@ -90,7 +90,7 @@ export default function Login() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 autoComplete="current-password"
-                                className="w-full bg-surface-800/70 border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-neon-green/40 focus:shadow-[0_0_15px_rgba(57,255,20,0.06)] transition-all duration-200"
+                                className="w-full bg-surface-800 border border-white/5 rounded pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-brand-primary/40 focus:ring-1 focus:ring-brand-primary/20 transition-all duration-200"
                             />
                         </div>
 
@@ -106,7 +106,7 @@ export default function Login() {
                             type="submit"
                             id="login-submit"
                             disabled={loading}
-                            className="w-full py-3 rounded-xl bg-neon-green text-surface-950 font-bold text-sm shadow-neon-green hover:shadow-[0_0_30px_rgba(57,255,20,0.4)] hover:scale-[1.02] active:scale-[0.99] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2">
+                            className="w-full py-3 rounded bg-brand-primary text-surface-950 font-bold text-sm hover:bg-[#45eb12] transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                             {loading && (
                                 <Loader2 size={16} className="animate-spin" />
                             )}

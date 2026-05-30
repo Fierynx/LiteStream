@@ -4,7 +4,7 @@ import axios from "axios";
 import ViewingRoom from "../components/ViewingRoom";
 import { useChat } from "../hooks/useChat";
 
-const API = "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL;
 const VIEWER_NAME = "Viewer" + Math.floor(Math.random() * 9000 + 1000);
 const CATEGORIES = ["FPS", "Esports", "Competitive", "English"];
 
@@ -62,8 +62,10 @@ export default function LiveRoom() {
     }, [usernameParam, channel]);
 
     const streamKey = channel?.stream_key ?? "";
+    const vodId = (channel as any)?.vod_id || streamKey;
     const { messages, connected, historyLoaded, sendMessage } = useChat(
         streamKey,
+        vodId,
         VIEWER_NAME,
     );
 
@@ -101,7 +103,7 @@ export default function LiveRoom() {
     return (
         <ViewingRoom
             /* Video */
-            videoSrc={`http://localhost:8080/live/${streamKey}.m3u8`}
+            videoSrc={`${import.meta.env.VITE_HLS_URL_PREFIX}${streamKey}.m3u8`}
             isLive={true}
             streamStatus={streamStatus}
             viewerCount={1247}

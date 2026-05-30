@@ -9,13 +9,13 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o worker .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o worker ./cmd/worker
 
 FROM alpine:latest
 
 WORKDIR /root/
 
-RUN apk --no-cache add ca-certificates curl
+RUN apk --no-cache add ca-certificates curl ffmpeg
 
 COPY --from=builder /app/worker .
 

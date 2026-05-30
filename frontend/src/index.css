@@ -2,79 +2,60 @@
 
 /* ═══ CUSTOM DESIGN TOKENS (Tailwind v4 @theme) ═══ */
 @theme {
-    /* ─── Surface palette: deep dark gaming aesthetic ─── */
-    --color-surface-950: #05050a;
-    --color-surface-900: #0a0a12;
-    --color-surface-850: #0e0e18;
-    --color-surface-800: #12121e;
-    --color-surface-750: #161625;
-    --color-surface-700: #1a1a2e;
-    --color-surface-600: #232340;
-    --color-surface-500: #2d2d52;
-    --color-surface-400: #3a3a6a;
+    /* ─── Surface palette: deep premium dark aesthetic ─── */
+    --color-surface-950: #050505; /* True black/darkest gray */
+    --color-surface-900: #0a0a0a;
+    --color-surface-850: #121212;
+    --color-surface-800: #1a1a1a;
+    --color-surface-750: #222222;
+    --color-surface-700: #2a2a2a;
+    --color-surface-600: #333333;
+    --color-surface-500: #404040;
+    --color-surface-400: #525252;
 
-    /* ─── Neon accent palette ─── */
-    --color-neon-green: #39ff14;
-    --color-neon-lime: #00ff87;
-    --color-neon-purple: #9146ff;
-    --color-neon-violet: #bf5af2;
-    --color-neon-pink: #ff2d78;
+    /* ─── Accent palette (Clean, modern green instead of glowing neon) ─── */
+    --color-brand-primary: #53fc18; /* Sharp, Kick-like green */
+    --color-brand-secondary: #00e5ff; /* Cyan accent for VODs */
+    --color-brand-danger: #ef4444; /* Clean red for Live badges */
+
+    /* Keep old neon variable names mapped to clean colors so we don't break existing components immediately before we refactor them */
+    --color-neon-green: #53fc18;
     --color-neon-cyan: #00e5ff;
+    --color-neon-purple: #8b5cf6;
+    --color-neon-pink: #ec4899;
+    --color-neon-violet: #d946ef;
 
     /* ─── Neutral tones ─── */
-    --color-neutral-100: #f0f0f5;
-    --color-neutral-200: #d1d1dc;
-    --color-neutral-300: #ababbe;
-    --color-neutral-400: #8585a0;
-    --color-neutral-500: #606080;
-    --color-neutral-600: #3c3c58;
+    --color-neutral-100: #f5f5f5;
+    --color-neutral-200: #e5e5e5;
+    --color-neutral-300: #d4d4d4;
+    --color-neutral-400: #a3a3a3;
+    --color-neutral-500: #737373;
+    --color-neutral-600: #525252;
 
     /* ─── Typography ─── */
     --font-display: "Inter", system-ui, -apple-system, sans-serif;
     --font-mono: "JetBrains Mono", monospace;
 
-    /* ─── Neon glow shadows ─── */
-    --shadow-neon-green:
-        0 0 20px rgba(57, 255, 20, 0.3), 0 0 60px rgba(57, 255, 20, 0.1);
-    --shadow-neon-purple:
-        0 0 20px rgba(145, 70, 255, 0.3), 0 0 60px rgba(145, 70, 255, 0.1);
-    --shadow-neon-pink:
-        0 0 20px rgba(255, 45, 120, 0.3), 0 0 60px rgba(255, 45, 120, 0.1);
-    --shadow-glow: 0 0 40px rgba(57, 255, 20, 0.15);
+    /* ─── Shadows (Flat, clean, no extreme glowing) ─── */
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.2);
     --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
+    
+    /* Overwrite old glows to just be clean drop-shadows temporarily */
+    --shadow-neon-green: 0 2px 10px rgba(83, 252, 24, 0.15);
+    --shadow-neon-purple: 0 2px 10px rgba(139, 92, 246, 0.15);
+    --shadow-neon-pink: 0 2px 10px rgba(236, 72, 153, 0.15);
+    --shadow-glow: 0 4px 15px rgba(0, 0, 0, 0.3);
 
     /* ─── Animations ─── */
-    --animate-pulse-slow: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    --animate-glow-breathe: glow-breathe 2s ease-in-out infinite alternate;
+    --animate-fade-in: fade-in 0.3s ease-out;
     --animate-slide-up: slide-up 0.3s ease-out;
-    --animate-fade-in: fade-in 0.5s ease-out;
 }
 
 /* ─── Keyframes ─── */
-@keyframes pulse-slow {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-}
-
-@keyframes glow-breathe {
-    0% {
-        box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);
-    }
-    100% {
-        box-shadow:
-            0 0 25px rgba(57, 255, 20, 0.5),
-            0 0 50px rgba(57, 255, 20, 0.15);
-    }
-}
-
 @keyframes slide-up {
     0% {
-        transform: translateY(10px);
+        transform: translateY(8px);
         opacity: 0;
     }
     100% {
@@ -118,50 +99,48 @@
         overflow: hidden;
     }
 
+    button,
+    a,
+    [role="button"] {
+        cursor: pointer;
+    }
+
     /* Custom scrollbar */
     ::-webkit-scrollbar {
-        width: 6px;
+        width: 8px;
     }
     ::-webkit-scrollbar-track {
         background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--color-surface-600);
         border-radius: 100px;
+        border: 2px solid var(--color-surface-950);
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.15);
+        background: var(--color-surface-500);
     }
 }
 
 /* ═══ UTILITY LAYER ═══ */
 @layer utilities {
     .scrollbar-thin::-webkit-scrollbar {
-        width: 4px;
+        width: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        border: 1px solid var(--color-surface-950);
     }
 }
 
 /* ═══ CUSTOM COMPONENT STYLES ═══ */
-
-/* Volume range slider — neon-green fill via CSS variable */
 .vol-slider::-webkit-slider-runnable-track {
     background: linear-gradient(
         to right,
-        #39ff14 var(--vol-pct, 80%),
-        rgba(255,255,255,0.18) var(--vol-pct, 80%)
+        var(--color-neutral-100) var(--vol-pct, 80%),
+        rgba(255,255,255,0.2) var(--vol-pct, 80%)
     );
     height: 4px;
     border-radius: 100px;
-}
-.vol-slider::-moz-range-track {
-    height: 4px;
-    border-radius: 100px;
-    background: rgba(255,255,255,0.18);
-}
-.vol-slider::-moz-range-progress {
-    height: 4px;
-    border-radius: 100px;
-    background: #39ff14;
 }
 .vol-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -171,27 +150,13 @@
     background: #fff;
     margin-top: -4px;
     cursor: pointer;
-    box-shadow: 0 0 6px rgba(57,255,20,0.5);
     transition: transform 0.1s;
 }
-.vol-slider::-webkit-slider-thumb:hover {
+.vol-slider:hover::-webkit-slider-thumb {
     transform: scale(1.2);
 }
-.vol-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #fff;
-    border: none;
-    cursor: pointer;
-}
 
-/* Slide-up animation for chat messages */
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
 .animate-slide-up {
-    animation: slideUp 0.2s ease-out both;
+    animation: slide-up 0.2s ease-out both;
 }
 

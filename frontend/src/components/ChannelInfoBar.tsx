@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, Share2, Users, Gamepad2 } from "lucide-react";
+import { Heart, Share2, Users, Gamepad2, Loader2, HeartOff } from "lucide-react";
+import axios from "axios";
+import { useToast } from "../contexts/ToastContext";
+import { useAuth } from "../contexts/AuthContext";
 
 export interface ChannelInfoProps {
     username: string;
@@ -14,13 +17,53 @@ export interface ChannelInfoProps {
 export default function ChannelInfoBar({
     username,
     title,
-    thumbnailUrl,
     categories = [],
     isLive,
     viewerCount,
 }: ChannelInfoProps) {
+    const { showToast } = useToast();
+    const { user, token } = useAuth();
     const [isFollowing, setIsFollowing] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
     const [shareFlash, setShareFlash] = useState(false);
+
+    const isOwnChannel = user?.username === username;
+
+    useEffect(() => {
+        if (token && username) {
+            axios
+                .get(`${import.meta.env.VITE_API_URL}/user/isfollowing/${username}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                })
+                .then(({ data }) => setIsFollowing(data.following))
+                .catch(() => {});
+        }
+    }, [username, token]);
+
+    const handleFollow = async () => {
+        if (!token) {
+            showToast("Please login to follow channels.", "warning");
+            return;
+        }
+        setFollowLoading(true);
+        try {
+            if (isFollowing) {
+                await axios.delete(`${import.meta.env.VITE_API_URL}/user/unfollow/${username}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setIsFollowing(false);
+            } else {
+                await axios.post(`${import.meta.env.VITE_API_URL}/user/follow/${username}`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setIsFollowing(true);
+            }
+        } catch (e) {
+            console.error("Follow error:", e);
+        } finally {
+            setFollowLoading(false);
+        }
+    };
 
     const handleShare = () => {
         navigator.clipboard.writeText(window.location.href).catch(() => {});
@@ -41,23 +84,8 @@ export default function ChannelInfoBar({
                                     ? "bg-gradient-to-br from-neon-green via-neon-cyan to-neon-purple"
                                     : "bg-surface-600"
                             }`}>
-                            <div className="w-full h-full rounded-full bg-surface-800 overflow-hidden flex items-center justify-center">
-                                {thumbnailUrl ? (
-                                    <img
-                                        src={thumbnailUrl}
-                                        alt={username}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                            (
-                                                e.target as HTMLImageElement
-                                            ).style.display = "none";
-                                        }}
-                                    />
-                                ) : (
-                                    <span className="text-lg font-bold text-neutral-300 uppercase">
-                                        {username.charAt(0)}
-                                    </span>
-                                )}
+                            <div className="w-full h-full rounded-full bg-surface-800 flex items-center justify-center text-xl font-bold uppercase text-white">
+                                {username?.charAt(0)}
                             </div>
                         </div>
                         {/* Online/offline dot */}
@@ -108,21 +136,33 @@ export default function ChannelInfoBar({
 
                 {/* ── Right: action buttons ── */}
                 <div className="flex items-center gap-2 shrink-0">
-                    {/* Follow */}
-                    <button
-                        onClick={() => setIsFollowing((f) => !f)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
-                            isFollowing
-                                ? "bg-surface-700/60 border border-white/[0.06] text-neutral-300 hover:border-red-500/30 hover:text-red-400"
-                                : "bg-neon-green text-surface-950 hover:shadow-[0_0_24px_rgba(57,255,20,0.35)] hover:scale-[1.03]"
-                        }`}>
-                        <Heart
-                            size={15}
-                            fill={isFollowing ? "currentColor" : "none"}
-                            className="shrink-0"
-                        />
-                        {isFollowing ? "Following" : "Follow"}
-                    </button>
+                    {/* Follow / Manage */}
+                    {isOwnChannel ? (
+                        <Link
+                            to="/dashboard"
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-surface-700/60 border border-white/[0.06] text-neutral-300 hover:bg-surface-600 transition-all duration-300"
+                        >
+                            Manage Stream
+                        </Link>
+                    ) : (
+                        <button
+                            onClick={handleFollow}
+                            disabled={followLoading}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
+                                isFollowing
+                                    ? "bg-surface-700/60 border border-white/[0.06] text-neutral-300 hover:border-red-500/30 hover:text-red-400"
+                                    : "bg-brand-primary text-surface-950 hover:bg-[#45eb12] hover:scale-105"
+                            }`}>
+                            {followLoading ? (
+                                <Loader2 size={15} className="animate-spin shrink-0" />
+                            ) : isFollowing ? (
+                                <HeartOff size={15} className="shrink-0" />
+                            ) : (
+                                <Heart size={15} fill="none" className="shrink-0" />
+                            )}
+                            {isFollowing ? "Following" : "Follow"}
+                        </button>
+                    )}
 
                     {/* Share */}
                     <button
