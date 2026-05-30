@@ -21,6 +21,10 @@ services:
     postgres:
         image: postgres:15-alpine
         container_name: litestream_db
+        environment:
+            POSTGRES_USER: ${DB_USER}
+            POSTGRES_PASSWORD: ${DB_PASSWORD}
+            POSTGRES_DB: ${DB_NAME}
         env_file:
             - .env
         ports:

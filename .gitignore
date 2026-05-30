@@ -6,7 +6,7 @@ vendor/
 .env
 .env.*.local
 .env.local
-.env.production
+/.env.production
 
 # Build outputs
 /frontend/dist/
