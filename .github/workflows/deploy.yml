@@ -14,7 +14,9 @@ jobs:
 
       - name: Inject Production Secrets
         run: |
-          echo "${{ secrets.PRODUCTION_ENV_FILE }}" > .env
+          cat << 'EOF' > .env
+          ${{ secrets.PRODUCTION_ENV_FILE }}
+          EOF
 
       - name: Deploy with Docker Compose (Production)
         run: |

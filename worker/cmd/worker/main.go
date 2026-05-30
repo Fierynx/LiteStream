@@ -31,7 +31,7 @@ func main() {
 
 	ctx := context.Background()
 
-	endpoint := mustGetEnv("AWS_ENDPOINT")
+	endpoint := os.Getenv("AWS_ENDPOINT")
 	region := mustGetEnv("AWS_REGION")
 	bucket := mustGetEnv("S3_BUCKET_NAME")
 	queueName := mustGetEnv("SQS_QUEUE_NAME")
@@ -42,14 +42,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
-		o.UsePathStyle = true
-	})
+	opts := []func(*s3.Options){}
+	if endpoint != "" {
+		opts = append(opts, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true
+		})
+	}
+	s3Client := s3.NewFromConfig(cfg, opts...)
 
-	sqsClient := sqs.NewFromConfig(cfg, func(o *sqs.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
-	})
+	sqsOpts := []func(*sqs.Options){}
+	if endpoint != "" {
+		sqsOpts = append(sqsOpts, func(o *sqs.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
+	}
+	sqsClient := sqs.NewFromConfig(cfg, sqsOpts...)
 
 	proc := processor.NewProcessor(logger, sqsClient, s3Client, "", bucket)
 
