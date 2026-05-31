@@ -42,11 +42,11 @@ export function useIsFollowing(username: string, enabled = true) {
             const token = localStorage.getItem("token");
             if (!token) return false;
             try {
-                const { data } = await axios.get<{ data: boolean }>(
+                const { data } = await axios.get<{ following: boolean }>(
                     `${API}/user/isfollowing/${username}`,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
-                return data.data;
+                return data.following;
             } catch (err) {
                 return false;
             }

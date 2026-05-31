@@ -32,6 +32,7 @@ export function useStreams() {
             const { data } = await axios.get<{ data: StreamItem[] }>(`${API}/streams`);
             return data.data;
         },
+        refetchInterval: 5000,
     });
 }
 
