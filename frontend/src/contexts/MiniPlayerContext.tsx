@@ -7,6 +7,7 @@ export interface StreamData {
     viewerCount?: number;
     title?: string;
     username?: string;
+    thumbnailUrl?: string;
 }
 
 interface MiniPlayerContextType {

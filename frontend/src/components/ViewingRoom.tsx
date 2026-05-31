@@ -79,6 +79,7 @@ export default function ViewingRoom({
                 viewerCount,
                 title: channel.title,
                 username: channel.username,
+                thumbnailUrl: channel.thumbnailUrl,
             });
             setMinimized(false);
         }

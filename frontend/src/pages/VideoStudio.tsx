@@ -51,7 +51,7 @@ export default function VideoStudio() {
     const onSave = (data: EditVodForm) => {
         if (!editingVod) return;
         updateVod(
-            { vodId: editingVod.vod_id!, title: data.title },
+            { vodId: editingVod.vod_id!, title: data.title, thumbnail_url: data.thumbnail_url },
             {
                 onSuccess: () => {
                     showToast("VOD updated successfully", "success");

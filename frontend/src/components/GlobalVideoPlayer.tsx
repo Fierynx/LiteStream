@@ -398,6 +398,7 @@ const GlobalVideoPlayer: React.FC = () => {
                 ref={videoRef}
                 className="absolute inset-0 w-full h-full object-contain bg-black"
                 playsInline
+                poster={streamData.thumbnailUrl}
             />
 
             {/* ── Offline / Error placeholder ── */}
