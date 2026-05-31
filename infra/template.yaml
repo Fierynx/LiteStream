@@ -27,7 +27,6 @@ Resources:
     VodIngestQueue:
         Type: AWS::SQS::Queue
         Properties:
-            QueueName: VodIngestQueue
             VisibilityTimeout: 120
             MessageRetentionPeriod: 1209600 # 14 days
             ReceiveMessageWaitTimeSeconds: 20 # Long-poll by default
