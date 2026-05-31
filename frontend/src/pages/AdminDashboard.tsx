@@ -76,7 +76,7 @@ export const AdminDashboard: React.FC = () => {
         aws_access_key_id: awsData.aws_access_key_id || '',
         aws_region: awsData.aws_region || 'us-east-1',
         aws_endpoint: awsData.aws_endpoint || '',
-        aws_secret_access_key: '', // Don't prefill secret
+        aws_secret_access_key: awsData.aws_secret_access_key || '',
       });
     }
   }, [awsData, resetAwsForm]);
@@ -328,10 +328,10 @@ export const AdminDashboard: React.FC = () => {
                 </h3>
                 <div className="space-y-4">
                   {[
-                    { label: 'Public VOD Base URL', value: awsConfigData?.public_vod_base_url || 'Not provisioned' },
-                    { label: 'S3 Bucket Name', value: awsConfigData?.s3_bucket_name || 'Not provisioned' },
-                    { label: 'SQS Queue URL', value: awsConfigData?.sqs_queue_url || 'Not provisioned' },
-                    { label: 'RTMP Ingest URL', value: awsConfigData?.rtmp_ingest_url || 'Not provisioned' }
+                    { label: 'Public VOD Base URL', value: awsData?.public_vod_base_url || 'Not provisioned' },
+                    { label: 'S3 Bucket Name', value: awsData?.s3_bucket_name || 'Not provisioned' },
+                    { label: 'SQS Queue URL', value: awsData?.sqs_queue_url || 'Not provisioned' },
+                    { label: 'RTMP Ingest URL', value: awsData?.rtmp_ingest_url || 'Not provisioned' }
                   ].map((item, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                       <div className="sm:w-1/3 text-xs font-bold text-neutral-400 uppercase tracking-wider">{item.label}</div>
