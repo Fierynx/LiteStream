@@ -216,7 +216,7 @@ export default function Home() {
                         Welcome to LiteStream
                     </h1>
                     <p className="text-neutral-400 mt-3 md:mt-4 max-w-xl text-sm md:text-base leading-relaxed">
-                        The minimalist, high-performance streaming platform built for creators. No ads, no latency, just pure broadcast.
+                        A clean and simple platform to broadcast, watch, and discover live streams.
                     </p>
                     <div className="mt-8 flex items-center gap-4">
                         <Link
