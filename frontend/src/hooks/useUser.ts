@@ -24,7 +24,7 @@ export function useUnfollow() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async (username: string) => {
-            const token = localStorage.getItem("token");
+            const token = localStorage.getItem("ls_token");
             await axios.delete(`${API}/user/unfollow/${username}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -39,7 +39,7 @@ export function useIsFollowing(username: string, enabled = true) {
     return useQuery({
         queryKey: ["isFollowing", username],
         queryFn: async () => {
-            const token = localStorage.getItem("token");
+            const token = localStorage.getItem("ls_token");
             if (!token) return false;
             try {
                 const { data } = await axios.get<{ following: boolean }>(

@@ -54,7 +54,7 @@ export function useDeleteVod() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async (vodId: string) => {
-            const token = localStorage.getItem("token");
+            const token = localStorage.getItem("ls_token");
             await axios.delete(`${API}/stream/vod/${vodId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -69,7 +69,7 @@ export function useUpdateVodTitle() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async ({ vodId, title }: { vodId: string; title: string }) => {
-            const token = localStorage.getItem("token");
+            const token = localStorage.getItem("ls_token");
             await axios.patch(
                 `${API}/stream/vod/${vodId}`,
                 { title },
