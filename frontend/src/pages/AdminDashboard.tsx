@@ -7,7 +7,8 @@ import {
 import { useForm } from 'react-hook-form';
 import { 
   useAdminLogin, useInfraStatus, useInfraEvents, 
-  useAwsConfig, useSaveAwsConfig, useProvisionInfra, useDeprovisionInfra 
+  useAwsConfig, useSaveAwsConfig, useProvisionInfra, useDeprovisionInfra,
+  useInfraMetrics
 } from '../hooks/useAdminApi';
 
 interface AwsConfigForm {
@@ -21,7 +22,7 @@ export const AdminDashboard: React.FC = () => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('adminToken'));
   
   const [logs, setLogs] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'infra' | 'logs' | 'aws'>('infra');
+  const [activeTab, setActiveTab] = useState<'infra' | 'logs' | 'aws' | 'monitoring'>('monitoring');
   const [showSecret, setShowSecret] = useState(false);
   
   // UX States
@@ -60,6 +61,7 @@ export const AdminDashboard: React.FC = () => {
   const infraStatus = statusData?.status || 'UNKNOWN';
 
   const { data: events = [] } = useInfraEvents(token ?? '');
+  const { data: metrics, isLoading: isMetricsLoading } = useInfraMetrics(token ?? '');
 
   const { mutate: provision, isPending: provisionLoading } = useProvisionInfra();
   const { mutate: deprovision, isPending: deprovisionLoading } = useDeprovisionInfra();
@@ -248,6 +250,9 @@ export const AdminDashboard: React.FC = () => {
             </button>
             <button onClick={() => setActiveTab('aws')} className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'aws' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
               <Key className="w-4 h-4 mr-2" /> AWS Config
+            </button>
+            <button onClick={() => setActiveTab('monitoring')} className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'monitoring' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
+              <Activity className="w-4 h-4 mr-2" /> Monitoring
             </button>
             <div className="w-px h-4 bg-zinc-800 mx-2"></div>
             <button onClick={handleLogout} className="p-2 text-zinc-500 hover:text-red-400 transition-colors" title="Logout">
@@ -469,6 +474,91 @@ export const AdminDashboard: React.FC = () => {
               >
                 <ArrowDown className="w-4 h-4 text-white" />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Monitoring */}
+        {activeTab === 'monitoring' && (
+          <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-6 lg:p-10 backdrop-blur-sm shadow-xl flex-1 max-w-4xl mx-auto w-full">
+            <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
+                  <Activity className="text-blue-500 w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Usage Monitoring</h2>
+                  <p className="text-xs text-zinc-400 mt-1">Track your AWS Free Tier consumption</p>
+                </div>
+              </div>
+              {isMetricsLoading && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
+            </div>
+
+            <div className="space-y-8">
+              {/* CloudFront Data Transfer */}
+              <div className="bg-black/30 border border-white/5 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">CloudFront Data Transfer Out</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Rolling 30 days data transfer limit</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-mono font-bold text-white">
+                      {((metrics?.cloudfront_bytes_30d || 0) / (1024 ** 3)).toFixed(2)} GB
+                    </span>
+                    <span className="text-xs text-zinc-500 ml-1">/ 1,024 GB (1 TB)</span>
+                  </div>
+                </div>
+                
+                <div className="w-full bg-zinc-800 rounded-full h-3 mb-2 overflow-hidden">
+                  <div 
+                    className={`h-3 rounded-full transition-all duration-1000 ${
+                      ((metrics?.cloudfront_bytes_30d || 0) / (1024 ** 4)) > 0.85 ? 'bg-red-500' : 'bg-blue-500'
+                    }`} 
+                    style={{ width: `${Math.min(((metrics?.cloudfront_bytes_30d || 0) / (1024 ** 4)) * 100, 100)}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                  <span>0%</span>
+                  <span>Free Tier Limit: 100%</span>
+                </div>
+              </div>
+
+              {/* S3 Storage */}
+              <div className="bg-black/30 border border-white/5 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">S3 Standard Storage</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Current stored video assets</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-mono font-bold text-white">
+                      {((metrics?.s3_bytes_current || 0) / (1024 ** 3)).toFixed(2)} GB
+                    </span>
+                    <span className="text-xs text-zinc-500 ml-1">/ 5.00 GB</span>
+                  </div>
+                </div>
+                
+                <div className="w-full bg-zinc-800 rounded-full h-3 mb-2 overflow-hidden">
+                  <div 
+                    className={`h-3 rounded-full transition-all duration-1000 ${
+                      ((metrics?.s3_bytes_current || 0) / (5 * 1024 ** 3)) > 0.85 ? 'bg-red-500' : 'bg-emerald-500'
+                    }`} 
+                    style={{ width: `${Math.min(((metrics?.s3_bytes_current || 0) / (5 * 1024 ** 3)) * 100, 100)}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                  <span>0%</span>
+                  <span>Free Tier Limit: 100%</span>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3">
+                <ShieldAlert className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-200/80 leading-relaxed">
+                  <strong>Note:</strong> These metrics are pulled directly from AWS CloudWatch without incurring any costs. However, to guarantee absolutely no unexpected charges, please ensure you have set up a <strong>Billing Alarm</strong> in your AWS Billing Console.
+                </div>
+              </div>
             </div>
           </div>
         )}

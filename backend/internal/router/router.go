@@ -60,6 +60,7 @@ func SetupRouter(
 		admin.GET("/logs/:container_name", adminHandler.Logs)
 		admin.GET("/infra/status", adminHandler.InfraStatus)
 		admin.GET("/infra/events", adminHandler.InfraEvents)
+		admin.GET("/infra/metrics", adminHandler.GetUsageMetrics)
 		admin.POST("/infra/provision", adminHandler.InfraProvision)
 		admin.POST("/infra/deprovision", adminHandler.InfraDeprovision)
 		admin.GET("/settings", adminHandler.GetAWSCredentials)

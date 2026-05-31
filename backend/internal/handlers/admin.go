@@ -13,6 +13,8 @@ import (
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	cloudwatchtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
@@ -325,4 +327,101 @@ func (h *AdminHandler) SaveAWSCredentials(c *gin.Context) {
 	h.DB.Save(&models.Setting{Key: "AWS_ENDPOINT", Value: req.Endpoint, UpdatedAt: time.Now()})
 
 	c.JSON(http.StatusOK, gin.H{"message": "AWS credentials saved"})
+}
+
+func (h *AdminHandler) GetUsageMetrics(c *gin.Context) {
+	bucket := models.GetSetting(h.DB, "S3_BUCKET_NAME", "")
+	stackName := models.GetSetting(h.DB, "CF_STACK_NAME", "LiteStreamStack")
+
+	cfClient, err := h.AwsManager.GetCFClient(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init CF client"})
+		return
+	}
+
+	res, err := cfClient.DescribeStackResources(context.Background(), &cloudformation.DescribeStackResourcesInput{
+		StackName: awssdk.String(stackName),
+	})
+
+	distributionId := ""
+	if err == nil && res != nil {
+		for _, r := range res.StackResources {
+			if *r.LogicalResourceId == "VodCDN" {
+				distributionId = *r.PhysicalResourceId
+				break
+			}
+		}
+	}
+
+	cwGlobal, err := h.AwsManager.GetCloudWatchClient(context.Background(), true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init CloudWatch global client"})
+		return
+	}
+
+	cwLocal, err := h.AwsManager.GetCloudWatchClient(context.Background(), false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init CloudWatch local client"})
+		return
+	}
+
+	endTime := time.Now()
+	startTime30d := endTime.Add(-30 * 24 * time.Hour)
+	startTime7d := endTime.Add(-7 * 24 * time.Hour) // Look back 7 days for S3 daily metric to ensure data point
+
+	var cfBytesDownloaded float64 = 0
+	if distributionId != "" {
+		metrics, err := cwGlobal.GetMetricStatistics(context.Background(), &cloudwatch.GetMetricStatisticsInput{
+			Namespace:  awssdk.String("AWS/CloudFront"),
+			MetricName: awssdk.String("BytesDownloaded"),
+			Dimensions: []cloudwatchtypes.Dimension{
+				{Name: awssdk.String("DistributionId"), Value: awssdk.String(distributionId)},
+				{Name: awssdk.String("Region"), Value: awssdk.String("Global")},
+			},
+			StartTime:  awssdk.Time(startTime30d),
+			EndTime:    awssdk.Time(endTime),
+			Period:     awssdk.Int32(86400), // 1 day period, we sum all 30 days
+			Statistics: []cloudwatchtypes.Statistic{cloudwatchtypes.StatisticSum},
+		})
+		if err == nil && len(metrics.Datapoints) > 0 {
+			for _, dp := range metrics.Datapoints {
+				if dp.Sum != nil {
+					cfBytesDownloaded += *dp.Sum
+				}
+			}
+		}
+	}
+
+	var s3BucketSizeBytes float64 = 0
+	if bucket != "" {
+		metrics, err := cwLocal.GetMetricStatistics(context.Background(), &cloudwatch.GetMetricStatisticsInput{
+			Namespace:  awssdk.String("AWS/S3"),
+			MetricName: awssdk.String("BucketSizeBytes"),
+			Dimensions: []cloudwatchtypes.Dimension{
+				{Name: awssdk.String("BucketName"), Value: awssdk.String(bucket)},
+				{Name: awssdk.String("StorageType"), Value: awssdk.String("StandardStorage")},
+			},
+			StartTime:  awssdk.Time(startTime7d),
+			EndTime:    awssdk.Time(endTime),
+			Period:     awssdk.Int32(86400), // 1 day
+			Statistics: []cloudwatchtypes.Statistic{cloudwatchtypes.StatisticAverage},
+		})
+		if err == nil && len(metrics.Datapoints) > 0 {
+			// Get latest data point
+			latest := metrics.Datapoints[0]
+			for _, dp := range metrics.Datapoints {
+				if dp.Timestamp.After(*latest.Timestamp) {
+					latest = dp
+				}
+			}
+			if latest.Average != nil {
+				s3BucketSizeBytes = *latest.Average
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"cloudfront_bytes_30d": cfBytesDownloaded,
+		"s3_bytes_current":     s3BucketSizeBytes,
+	})
 }

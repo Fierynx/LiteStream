@@ -8,6 +8,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"gorm.io/gorm"
@@ -83,4 +84,21 @@ func (m *Manager) GetCFClient(ctx context.Context) (*cloudformation.Client, erro
 		})
 	}
 	return cloudformation.NewFromConfig(cfg, opts...), nil
+}
+
+func (m *Manager) GetCloudWatchClient(ctx context.Context, forceUsEast1 bool) (*cloudwatch.Client, error) {
+	cfg, endpoint, err := m.getConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if forceUsEast1 {
+		cfg.Region = "us-east-1"
+	}
+	opts := []func(*cloudwatch.Options){}
+	if endpoint != "" {
+		opts = append(opts, func(o *cloudwatch.Options) {
+			o.BaseEndpoint = awssdk.String(endpoint)
+		})
+	}
+	return cloudwatch.NewFromConfig(cfg, opts...), nil
 }

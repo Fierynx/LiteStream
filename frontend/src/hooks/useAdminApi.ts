@@ -94,3 +94,17 @@ export function useDeprovisionInfra() {
         },
     });
 }
+
+export function useInfraMetrics(adminToken: string) {
+    return useQuery({
+        queryKey: ["infraMetrics"],
+        queryFn: async () => {
+            const { data } = await axios.get(`${API}/admin/infra/metrics`, {
+                headers: { Authorization: `Bearer ${adminToken}` },
+            });
+            return data;
+        },
+        enabled: !!adminToken,
+        refetchInterval: 30000,
+    });
+}
