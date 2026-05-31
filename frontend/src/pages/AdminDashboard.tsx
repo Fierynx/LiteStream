@@ -41,8 +41,8 @@ export const AdminDashboard: React.FC = () => {
   const { mutate: login, isPending: loginLoading } = useAdminLogin();
   const { register: registerLogin, handleSubmit: handleLoginSubmit } = useForm();
 
-  const onLogin = (data: any) => {
-    login(data.password, {
+  const onLogin = (data: Record<string, unknown>) => {
+    login(data.password as string, {
       onSuccess: (res) => {
         localStorage.setItem('adminToken', res.token);
         setToken(res.token);
@@ -135,7 +135,7 @@ export const AdminDashboard: React.FC = () => {
       } else {
         setLogs('Failed to fetch logs');
       }
-    } catch (err) {
+    } catch {
       setLogs('Connection error');
     }
   };
@@ -410,7 +410,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <div className="relative border-l border-zinc-800 ml-3 space-y-6 pb-4">
-                      {events.map((e: any, idx: number) => {
+                      {events.map((e: Record<string, string>, idx: number) => {
                         const isErr = e.resource_status.includes('FAILED');
                         const isSucc = e.resource_status.includes('COMPLETE');
                         
