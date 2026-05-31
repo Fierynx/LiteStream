@@ -39,6 +39,8 @@ interface ChatSidebarProps {
     channelUsername?: string;
     /** Called when user submits a message (live mode only) */
     onSend?: (text: string) => void;
+    /** Called when user clicks the close chat button */
+    onCloseChat?: () => void;
 }
 
 /* ─── formatTime helper ─── */
@@ -60,6 +62,7 @@ export default function ChatSidebar({
     playbackTime = 0,
     onSend,
     channelUsername = "",
+    onCloseChat,
 }: ChatSidebarProps) {
     const [input, setInput] = useState("");
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -107,21 +110,22 @@ export default function ChatSidebar({
     };
 
     return (
-        <aside className="flex flex-col w-[350px] shrink-0 border-l border-white/[0.04] bg-surface-900/70 backdrop-blur-md h-full">
+        <aside className="flex flex-col w-full h-full bg-surface-900/70 backdrop-blur-md">
             {/* ── Header ── */}
             <div className="h-12 px-4 flex items-center justify-between border-b border-white/[0.04] shrink-0">
                 <div className="flex items-center gap-2">
                     {isReplayMode ? (
-                        <Clock size={14} className="text-neon-cyan" />
+                        <Clock size={14} className="text-neon-cyan hidden md:block" />
                     ) : (
-                        <MessageSquare size={14} className="text-neon-green" />
+                        <MessageSquare size={14} className="text-neon-green hidden md:block" />
                     )}
                     <span className="text-[13px] font-bold tracking-widest uppercase text-neutral-300">
                         {isReplayMode ? "Replay Chat" : "Stream Chat"}
                     </span>
                 </div>
 
-                {isReplayMode ? (
+                <div className="flex items-center gap-2">
+                    {isReplayMode ? (
                     /* VOD: show current playback timestamp */
                     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-700/60 border border-white/[0.04]">
                         <span className="text-[10px] font-mono text-neutral-500 tabular-nums">
@@ -147,6 +151,13 @@ export default function ChatSidebar({
                         </span>
                     </div>
                 )}
+                    
+                {onCloseChat && (
+                    <button onClick={onCloseChat} className="ml-2 p-1.5 hover:bg-white/10 rounded-md text-neutral-400 hover:text-white transition-colors" title="Close Chat">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                )}
+                </div>
             </div>
 
             {/* ── Messages ── */}

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Tv, Video } from "lucide-react";
+import { ArrowLeft, Tv, Video, MessageSquare } from "lucide-react";
 import ChannelInfoBar, { type ChannelInfoProps } from "./ChannelInfoBar";
 import ChatSidebar, { type ChatMsg } from "./ChatSidebar";
 import { useMiniPlayer } from "../contexts/MiniPlayerContext";
@@ -90,12 +90,14 @@ export default function ViewingRoom({
         };
     }, [videoSrc, isLive, streamStatus, channel.title, channel.username]);
 
+    const [isChatOpen, setIsChatOpen] = useState(true);
+
     return (
-        <div className="flex h-full w-full min-h-0">
-            {/* ═══ LEFT: Video column ═══ */}
-            <main id="viewing-room-scroll" className="flex-1 flex flex-col min-w-0 overflow-y-auto scrollbar-thin">
-                {/* Back breadcrumb */}
-                <div className="px-4 pt-3 pb-2 shrink-0">
+        <div className="flex flex-col md:flex-row h-full w-full min-h-0 bg-surface-950 relative overflow-hidden">
+            {/* ═══ LEFT/TOP: Video column ═══ */}
+            <main id="viewing-room-scroll" className={`flex flex-col min-w-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin transition-all duration-300 ${isChatOpen ? "md:pr-0" : ""}`}>
+                {/* Desktop Breadcrumb */}
+                <div className="hidden md:flex px-4 pt-3 pb-2 shrink-0">
                     <Link
                         to="/"
                         className="inline-flex items-center gap-1.5 text-xs text-neutral-600 hover:text-neutral-300 transition-colors duration-200 group">
@@ -107,14 +109,22 @@ export default function ViewingRoom({
                     </Link>
                 </div>
 
-                {/* ── Video slot ── */}
-                <div className="px-4 shrink-0">
-                    {streamStatus === "live" || (!isLive && streamStatus !== "offline") ? (
-                        /* Placeholder for GlobalVideoPlayer */
-                        <div ref={placeholderRef} className="w-full aspect-video rounded-xl bg-surface-900 border border-white/[0.04]" />
-                    ) : streamStatus === "vod" && isLive ? (
+                {/* ── Video slot - Sticky on Mobile ── */}
+                <div className="sticky top-0 z-40 w-full shrink-0 bg-surface-950 md:px-4 md:static">
+                    {/* Mobile Breadcrumb Overlay */}
+                    <div className="absolute top-3 left-3 z-50 md:hidden bg-black/50 backdrop-blur-md rounded-full px-3 py-1.5 border border-white/10 shadow-lg">
+                        <Link to="/" className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider">
+                            <ArrowLeft size={14} /> Back
+                        </Link>
+                    </div>
+
+                    <div className="w-full">
+                        {streamStatus === "live" || (!isLive && streamStatus !== "offline") ? (
+                            /* Placeholder for GlobalVideoPlayer */
+                            <div ref={placeholderRef} className="w-full aspect-video md:rounded-xl bg-surface-900 md:border border-white/[0.04]" />
+                        ) : streamStatus === "vod" && isLive ? (
                         /* Live page but stream ended — redirect to VOD */
-                        <div className="relative w-full aspect-video rounded-xl bg-surface-900 border border-white/[0.04] flex flex-col items-center justify-center text-center p-6">
+                        <div className="relative w-full aspect-video md:rounded-xl bg-surface-900 md:border border-white/[0.04] flex flex-col items-center justify-center text-center p-6 overflow-hidden">
                             <div className="absolute -inset-3 bg-neon-cyan/[0.03] rounded-2xl blur-2xl pointer-events-none" />
                             <div className="w-16 h-16 rounded-full bg-neon-cyan/10 border border-neon-cyan/20 flex items-center justify-center mb-4">
                                 <Tv size={26} className="text-neon-cyan" />
@@ -136,7 +146,7 @@ export default function ViewingRoom({
                         </div>
                     ) : (
                         /* Offline — stream not started yet */
-                        <div className="relative w-full aspect-video rounded-xl bg-surface-900 border border-white/[0.04] flex flex-col items-center justify-center text-center p-6">
+                        <div className="relative w-full aspect-video md:rounded-xl bg-surface-900 md:border border-white/[0.04] flex flex-col items-center justify-center text-center p-6 overflow-hidden">
                             <div className="absolute -inset-3 bg-neon-purple/[0.03] rounded-2xl blur-2xl pointer-events-none" />
                             <div className="relative w-16 h-16 rounded-full bg-surface-800 border border-white/[0.04] flex items-center justify-center mb-4">
                                 <Video
@@ -159,6 +169,7 @@ export default function ViewingRoom({
                             </div>
                         </div>
                     )}
+                    </div>
                 </div>
 
                 {/* ── Channel Info Bar ── */}
@@ -169,17 +180,31 @@ export default function ViewingRoom({
                 />
             </main>
 
-            {/* ═══ RIGHT: Chat sidebar ═══ */}
-            <ChatSidebar
-                messages={chatMessages}
-                historyLoaded={chatLoaded}
-                connected={connected}
-                viewerName={viewerName}
-                streamStatus={streamStatus}
-                mode={chatMode}
-                playbackTime={playbackTime}
-                onSend={onSend}
-            />
+            {/* ═══ RIGHT/BOTTOM: Chat sidebar ═══ */}
+            <div className={`transition-all duration-300 ease-in-out shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-white/[0.04] bg-surface-900/70 backdrop-blur-md ${isChatOpen ? "h-[50vh] md:h-full w-full md:w-[350px] lg:w-[400px]" : "h-0 md:h-full md:w-0 overflow-hidden border-none"}`}>
+                <ChatSidebar
+                    messages={chatMessages}
+                    historyLoaded={chatLoaded}
+                    connected={connected}
+                    viewerName={viewerName}
+                    streamStatus={streamStatus}
+                    mode={chatMode}
+                    playbackTime={playbackTime}
+                    onSend={onSend}
+                    onCloseChat={() => setIsChatOpen(false)}
+                />
+            </div>
+            
+            {/* Floating button when chat is closed */}
+            {!isChatOpen && (
+                <button
+                    onClick={() => setIsChatOpen(true)}
+                    className="absolute top-4 right-4 z-50 p-2.5 bg-surface-800/80 hover:bg-surface-700 backdrop-blur-md text-white rounded-lg border border-white/10 shadow-xl transition-all hover:scale-105"
+                    title="Show Chat"
+                >
+                    <MessageSquare size={20} />
+                </button>
+            )}
         </div>
     );
 }
