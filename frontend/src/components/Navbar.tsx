@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Zap, Search, Bell, LogIn } from "lucide-react";
+import { Zap, Search, Bell, LogIn, LogOut, Video } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Navbar() {
@@ -18,7 +18,7 @@ export default function Navbar() {
                         fill="currentColor"
                     />
                 </div>
-                <span className="text-lg font-bold tracking-tight text-white group-hover:text-neutral-200 transition-colors">
+                <span className="hidden sm:block text-lg font-bold tracking-tight text-white group-hover:text-neutral-200 transition-colors">
                     LiteStream
                 </span>
             </Link>
@@ -37,7 +37,7 @@ export default function Navbar() {
             <div className="flex items-center gap-4">
                 <button
                     onClick={() => navigate("/")}
-                    className="text-sm font-semibold text-neutral-400 hover:text-white transition-colors duration-200">
+                    className="hidden sm:block text-sm font-semibold text-neutral-400 hover:text-white transition-colors duration-200">
                     Browse
                 </button>
 
@@ -50,8 +50,9 @@ export default function Navbar() {
                 {!isLoading &&
                     (user ? (
                         /* Authenticated */
-                        <div className="flex items-center gap-4 ml-2">
-                            <Link to="/studio" className="text-sm font-semibold text-neutral-300 hover:text-white transition-colors duration-200">
+                        <div className="flex items-center gap-3 sm:gap-4 ml-1 sm:ml-2">
+                            <Link to="/studio" className="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-neutral-300 hover:text-white transition-colors duration-200 whitespace-nowrap">
+                                <Video size={16} />
                                 Video Studio
                             </Link>
                             <Link
@@ -69,9 +70,9 @@ export default function Navbar() {
                                     logout();
                                     navigate("/");
                                 }}
-                                className="ml-2 text-sm font-semibold text-red-400 hover:text-red-300 transition-colors duration-200"
+                                className="flex items-center justify-center p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors duration-200"
                                 title="Logout">
-                                Logout
+                                <LogOut size={18} />
                             </button>
                         </div>
                     ) : (
