@@ -22,7 +22,7 @@ export default function ChannelInfoBar({
     viewerCount,
 }: ChannelInfoProps) {
     const { showToast } = useToast();
-    const { user, token } = useAuth();
+    const { user, token, isLoading } = useAuth();
     const [isFollowing, setIsFollowing] = useState(false);
     const [followLoading, setFollowLoading] = useState(false);
     const [shareFlash, setShareFlash] = useState(false);
@@ -137,7 +137,9 @@ export default function ChannelInfoBar({
                 {/* ── Right: action buttons ── */}
                 <div className="flex items-center gap-2 shrink-0">
                     {/* Follow / Manage */}
-                    {isOwnChannel ? (
+                    {isLoading ? (
+                        <div className="w-24 h-9 bg-surface-700/30 rounded-lg animate-pulse" />
+                    ) : isOwnChannel ? (
                         <Link
                             to="/dashboard"
                             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-surface-700/60 border border-white/[0.06] text-neutral-300 hover:bg-surface-600 transition-all duration-300"
