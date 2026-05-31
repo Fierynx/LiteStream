@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigate, Link } from "react-router-dom";
-import axios from "axios";
 import {
     Zap,
     Key,
@@ -19,11 +18,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { useConfig } from "../contexts/ConfigContext";
 import { useChat } from "../hooks/useChat";
+import { useChannel, useUpdateStreamSettings, useUploadThumbnail } from "../hooks/useStreams";
 import VideoPlayer from "../components/VideoPlayer";
 import ChatSidebar from "../components/ChatSidebar";
 
-const API = import.meta.env.VITE_API_URL;
 
 /* ─── Drag-and-drop thumbnail upload zone ─── */
 interface UploadZoneProps {
@@ -40,9 +40,10 @@ export function ThumbnailUploadZone({
     const inputRef = useRef<HTMLInputElement>(null);
     const [dragging, setDragging] = useState(false);
     const [preview, setPreview] = useState<string>(currentUrl);
-    const [uploading, setUploading] = useState(false);
-    const [error, setError] = useState("");
     const [done, setDone] = useState(false);
+    const [error, setError] = useState("");
+
+    const { mutate: uploadThumbnail, isPending: uploading } = useUploadThumbnail();
 
     // Sync preview when parent's currentUrl changes (on fetch).
     useEffect(() => {
@@ -58,30 +59,19 @@ export function ThumbnailUploadZone({
         const localUrl = URL.createObjectURL(file);
         setPreview(localUrl);
         setError("");
-        setUploading(true);
-        try {
-            const form = new FormData();
-            form.append("file", file);
-            const { data } = await axios.post<{ url: string }>(
-                `${API}/upload/thumbnail`,
-                form,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "multipart/form-data",
-                    },
-                },
-            );
-            setPreview(data.url);
-            onUploaded(data.url);
-            setDone(true);
-            setTimeout(() => setDone(false), 3000);
-        } catch {
-            setError("Upload failed. Is the backend running?");
-            setPreview(currentUrl); // revert
-        } finally {
-            setUploading(false);
-        }
+        
+        uploadThumbnail({ file, token }, {
+            onSuccess: (data) => {
+                setPreview(data.url);
+                onUploaded(data.url);
+                setDone(true);
+                setTimeout(() => setDone(false), 3000);
+            },
+            onError: () => {
+                setError("Upload failed. Is the backend running?");
+                setPreview(currentUrl); // revert
+            }
+        });
     };
 
     const handleDrop = (e: React.DragEvent) => {
@@ -223,6 +213,7 @@ export function ThumbnailUploadZone({
 export default function Dashboard() {
     const { user, token, isLoading } = useAuth();
     const { showToast } = useToast();
+    const { config } = useConfig();
 
     const [keyVisible, setKeyVisible] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -230,45 +221,24 @@ export default function Dashboard() {
     const [title, setTitle] = useState("");
     const [thumbnailUrl, setThumbnailUrl] = useState("");
     const [settingsDirty, setSettingsDirty] = useState(false);
-    const [settingsSaving, setSettingsSaving] = useState(false);
     const [settingsSaved, setSettingsSaved] = useState(false);
 
-    const [streamStatus, setStreamStatus] = useState<
-        "offline" | "live" | "vod"
-    >("offline");
-
-    // Fetch current channel info on mount.
+    // Fetch current channel info on mount with polling every 5s for status.
+    const { data: channelData } = useChannel(user?.username || "", true);
+    
     useEffect(() => {
-        if (!user) return;
-        axios
-            .get<{
-                data: { title: string; thumbnail_url: string; status: string };
-            }>(`${API}/channel/${user.username}`)
-            .then(({ data }) => {
-                setTitle(data.data.title ?? "");
-                setThumbnailUrl(data.data.thumbnail_url ?? "");
-                setStreamStatus(data.data.status as "offline" | "live" | "vod");
-            })
-            .catch(() => {});
-    }, [user]);
+        if (channelData?.data) {
+            // Only update local state if not dirty to prevent overwriting user input
+            if (!settingsDirty) {
+                setTitle(channelData.data.title ?? "");
+                setThumbnailUrl(channelData.data.thumbnail_url ?? "");
+            }
+        }
+    }, [channelData, settingsDirty]);
 
-    // Poll stream status every 5 s.
-    useEffect(() => {
-        if (!user) return;
-        const iv = setInterval(() => {
-            axios
-                .get<{ data: { status: string } }>(
-                    `${API}/channel/${user.username}`,
-                )
-                .then(({ data }) =>
-                    setStreamStatus(
-                        data.data.status as "offline" | "live" | "vod",
-                    ),
-                )
-                .catch(() => {});
-        }, 5000);
-        return () => clearInterval(iv);
-    }, [user]);
+    const streamStatus = channelData?.data?.status || "offline";
+
+    const { mutate: updateSettings, isPending: settingsSaving } = useUpdateStreamSettings();
 
     const { messages, connected, historyLoaded, sendMessage } = useChat(
         user?.streamKey ?? "",
@@ -293,24 +263,19 @@ export default function Dashboard() {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const saveSettings = async () => {
+    const saveSettings = () => {
         if (!token) return;
-        setSettingsSaving(true);
-        try {
-            await axios.patch(
-                `${API}/stream/settings`,
-                { title, thumbnail_url: thumbnailUrl },
-                { headers: { Authorization: `Bearer ${token}` } },
-            );
-            setSettingsSaved(true);
-            setSettingsDirty(false);
-            showToast("Stream info updated successfully!", "success");
-            setTimeout(() => setSettingsSaved(false), 2500);
-        } catch {
-            showToast("Failed to update stream info.", "error");
-        } finally {
-            setSettingsSaving(false);
-        }
+        updateSettings({ title, thumbnail_url: thumbnailUrl, token }, {
+            onSuccess: () => {
+                setSettingsSaved(true);
+                setSettingsDirty(false);
+                showToast("Stream info updated successfully!", "success");
+                setTimeout(() => setSettingsSaved(false), 2500);
+            },
+            onError: () => {
+                showToast("Failed to update stream info.", "error");
+            }
+        });
     };
 
     return (
@@ -406,7 +371,7 @@ export default function Dashboard() {
                                     <div>
                                         <label className="text-xs uppercase tracking-widest text-neutral-500 font-bold mb-2 block">RTMP Server</label>
                                         <div className="bg-surface-900/50 border border-white/10 rounded-xl px-4 py-3 flex items-center">
-                                            <code className="text-sm text-neutral-300 font-mono flex-1 select-all">{import.meta.env.VITE_RTMP_INGEST_URL}</code>
+                                            <code className="text-sm text-neutral-300 font-mono flex-1 select-all">{config.RTMP_INGEST_URL || import.meta.env.VITE_RTMP_INGEST_URL}</code>
                                         </div>
                                     </div>
                                     <div>

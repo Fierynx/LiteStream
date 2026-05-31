@@ -1,41 +1,41 @@
-import React, { useState } from "react";
+import { useState } from 'react';
 import { Link, useNavigate } from "react-router-dom";
 import { Zap, User, Lock, Loader2, AlertCircle } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { useAuth } from "../contexts/AuthContext";
+import { useRegisterMutation } from "../hooks/useAuthApi";
 
 export default function Register() {
-    const { register } = useAuth();
+    const { saveSession } = useAuth();
     const navigate = useNavigate();
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirm, setConfirm] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [localError, setLocalError] = useState("");
 
-    const handleSubmit = async (e: React.SyntheticEvent) => {
-        e.preventDefault();
-        setError("");
-        if (password !== confirm) {
-            setError("Passwords do not match.");
+    const { mutate: registerMutation, isPending: loading } = useRegisterMutation();
+    const { register, handleSubmit } = useForm();
+    const onSubmit = (data: any) => {
+        setLocalError("");
+        if (data.password !== data.confirm) {
+            setLocalError("Passwords do not match.");
             return;
         }
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters.");
+        if (data.password.length < 6) {
+            setLocalError("Password must be at least 6 characters.");
             return;
         }
-        setLoading(true);
-        try {
-            await register(username, password);
-            navigate("/dashboard");
-        } catch (err: unknown) {
-            const msg = (err as { response?: { data?: { error?: string } } })
-                ?.response?.data?.error;
-            setError(
-                msg ?? "Registration failed. Username may already be taken.",
-            );
-        } finally {
-            setLoading(false);
-        }
+
+        registerMutation(
+            { username: data.username, password: data.password },
+            {
+                onSuccess: (res) => {
+                    saveSession(res.token, res.username, res.stream_key);
+                    navigate("/dashboard");
+                },
+                onError: (err: any) => {
+                    const msg = err?.response?.data?.error;
+                    setLocalError(msg ?? "Registration failed. Username may already be taken.");
+                },
+            }
+        );
     };
 
     return (
@@ -64,7 +64,7 @@ export default function Register() {
                     <p className="text-sm text-neutral-500 text-center mb-7">
                         Your permanent stream key is generated automatically.
                     </p>
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="relative">
                             <User
                                 size={15}
@@ -74,11 +74,8 @@ export default function Register() {
                                 id="reg-username"
                                 type="text"
                                 placeholder="Username (3–32 chars)"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                required
-                                minLength={3}
-                                maxLength={32}
+                                {...register("username", { required: true, minLength: 3, maxLength: 32 })}
+                                autoComplete="username"
                                 className="w-full bg-surface-800/70 border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-neon-purple/40 transition-all duration-200"
                             />
                         </div>
@@ -91,9 +88,8 @@ export default function Register() {
                                 id="reg-password"
                                 type="password"
                                 placeholder="Password (min 6 chars)"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
+                                {...register("password", { required: true, minLength: 6 })}
+                                autoComplete="new-password"
                                 className="w-full bg-surface-800/70 border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-neon-purple/40 transition-all duration-200"
                             />
                         </div>
@@ -106,16 +102,15 @@ export default function Register() {
                                 id="reg-confirm"
                                 type="password"
                                 placeholder="Confirm password"
-                                value={confirm}
-                                onChange={(e) => setConfirm(e.target.value)}
-                                required
+                                {...register("confirm", { required: true })}
+                                autoComplete="new-password"
                                 className="w-full bg-surface-800/70 border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-neon-purple/40 transition-all duration-200"
                             />
                         </div>
-                        {error && (
+                        {localError && (
                             <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm animate-slide-up">
                                 <AlertCircle size={14} className="shrink-0" />
-                                {error}
+                                {localError}
                             </div>
                         )}
                         <button

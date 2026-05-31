@@ -28,7 +28,7 @@ func InitPostgres() (*gorm.DB, error) {
 		return nil, err
 	}
 	
-	err = db.AutoMigrate(&models.User{}, &models.Stream{}, &models.ChatMessageDB{}, &models.Follow{})
+	err = db.AutoMigrate(&models.User{}, &models.Stream{}, &models.ChatMessageDB{}, &models.Follow{}, &models.Setting{})
 	if err != nil {
 	    return nil, err
 	}

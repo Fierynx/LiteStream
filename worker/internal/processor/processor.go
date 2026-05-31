@@ -92,6 +92,11 @@ func (p *Processor) UploadFile(ctx context.Context, filename string, vodID strin
 
 	f, err := os.Open(filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// File might have been successfully uploaded and cleaned up in a previous retry.
+			p.Logger.Debug("File does not exist locally, skipping upload", "file", filePath)
+			return nil
+		}
 		return fmt.Errorf("open %q: %w", filePath, err)
 	}
 	defer f.Close()
@@ -174,11 +179,16 @@ func (p *Processor) ProcessMessage(ctx context.Context, msg sqstypes.Message) er
 				payloadBytes, _ := json.Marshal(payload)
 				backendURL := fmt.Sprintf("http://litestream_backend:8000/internal/vod/%s/auto-thumbnail", msgBody.VodID)
 				
-				if resp, err := http.Post(backendURL, "application/json", bytes.NewBuffer(payloadBytes)); err != nil {
-					p.Logger.Warn("Failed to notify backend of auto thumbnail", "error", err)
-				} else {
-					resp.Body.Close()
-					p.Logger.Info("Notified backend of auto thumbnail", "s3_key", s3Key)
+				req, err := http.NewRequest("POST", backendURL, bytes.NewBuffer(payloadBytes))
+				if err == nil {
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("X-Internal-Token", "litestream-internal-secret-token")
+					client := &http.Client{}
+					if resp, err := client.Do(req); err != nil {
+						p.Logger.Warn("Failed to notify backend of auto thumbnail", "error", err)
+					} else {
+						resp.Body.Close()
+					}
 				}
 			}
 		}
@@ -196,13 +206,14 @@ func (p *Processor) ProcessMessage(ctx context.Context, msg sqstypes.Message) er
 	}
 
 	if len(uploadErrors) > 0 {
-		p.Logger.Warn("Some segments failed to upload",
+		p.Logger.Warn("Some segments failed to upload, leaving message in queue",
 			"failed", uploadErrors,
 			"succeeded", len(segments)-len(uploadErrors))
-	} else {
-		// Only delete playlist if all segments uploaded
-		os.Remove(playlistPath)
-	}
+		return fmt.Errorf("failed to upload %d segments", len(uploadErrors))
+	} 
+
+	// Only delete playlist if all segments uploaded
+	os.Remove(playlistPath)
 
 	_, err = p.SQSClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(p.SQSQueueURL),

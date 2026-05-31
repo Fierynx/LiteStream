@@ -6,7 +6,7 @@ services:
             [
                 "/bin/sh",
                 "-c",
-                "chmod +x /usr/local/bin/notify_vod.sh && chmod +x /usr/local/bin/notify_start.sh && chmod 777 /tmp/hls && nginx -g 'daemon off;'",
+                "chmod +x /usr/local/bin/notify_vod.sh && chmod 777 /tmp/hls && nginx -g 'daemon off;'",
             ]
         ports:
             - "1935:1935"
@@ -15,7 +15,6 @@ services:
             - ./nginx.conf:/etc/nginx/nginx.conf:ro
             - hls_data:/tmp/hls
             - ./notify_vod.sh:/usr/local/bin/notify_vod.sh
-            - ./notify_start.sh:/usr/local/bin/notify_start.sh
         restart: unless-stopped
 
     postgres:

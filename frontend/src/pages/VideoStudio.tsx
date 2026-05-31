@@ -1,49 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Navigate, Link } from "react-router-dom";
-import axios from "axios";
 import { Film, Edit3, Trash2, X, Loader2, Save, ExternalLink, Calendar, Image as ImageIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { ThumbnailUploadZone } from "./Dashboard";
+import { useChannel, useUpdateVodTitle, useDeleteVod, type StreamItem } from "../hooks/useStreams";
 
-const API = import.meta.env.VITE_API_URL;
-
-interface VOD {
-    vod_id: string;
+interface EditVodForm {
     title: string;
     thumbnail_url: string;
-    started_at: string;
-    ended_at: string;
 }
 
 export default function VideoStudio() {
     const { user, token, isLoading } = useAuth();
     const { showToast } = useToast();
 
-    const [vods, setVods] = useState<VOD[]>([]);
-    const [fetching, setFetching] = useState(true);
+    const { data: channelData, isLoading: isFetching } = useChannel(user?.username ?? "");
+    const { mutate: updateVod, isPending: isSaving } = useUpdateVodTitle();
+    const { mutate: deleteVod } = useDeleteVod();
 
-    const [editingVod, setEditingVod] = useState<VOD | null>(null);
-    const [editTitle, setEditTitle] = useState("");
-    const [editThumbnail, setEditThumbnail] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
+    const vods = channelData?.vods ?? [];
 
-    const [deletingVod, setDeletingVod] = useState<string | null>(null);
+    const [editingVod, setEditingVod] = useState<StreamItem | null>(null);
+    const [deletingVodId, setDeletingVodId] = useState<string | null>(null);
 
-    const fetchVods = () => {
-        if (!user) return;
-        setFetching(true);
-        axios
-            .get<{ vods: VOD[] }>(`${API}/channel/${user.username}`)
-            .then(({ data }) => setVods(data.vods ?? []))
-            .catch(() => showToast("Failed to fetch VODs", "error"))
-            .finally(() => setFetching(false));
-    };
-
-    useEffect(() => {
-        fetchVods();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]);
+    const { register, handleSubmit, setValue, watch, reset } = useForm<EditVodForm>();
+    const watchThumbnail = watch("thumbnail_url");
 
     if (isLoading) {
         return (
@@ -55,53 +38,39 @@ export default function VideoStudio() {
 
     if (!user) return <Navigate to="/login" replace />;
 
-    const openEditModal = (vod: VOD) => {
+    const openEditModal = (vod: StreamItem) => {
         setEditingVod(vod);
-        setEditTitle(vod.title);
-        setEditThumbnail(vod.thumbnail_url);
+        reset({ title: vod.title, thumbnail_url: vod.thumbnail_url });
     };
 
     const closeEditModal = () => {
         setEditingVod(null);
-        setEditTitle("");
-        setEditThumbnail("");
+        reset();
     };
 
-    const saveVodChanges = async () => {
-        if (!editingVod || !token) return;
-        setIsSaving(true);
-        try {
-            await axios.patch(
-                `${API}/stream/vod/${editingVod.vod_id}`,
-                { title: editTitle, thumbnail_url: editThumbnail },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            showToast("VOD updated successfully", "success");
-            fetchVods();
-            closeEditModal();
-        } catch {
-            showToast("Failed to update VOD", "error");
-        } finally {
-            setIsSaving(false);
-        }
+    const onSave = (data: EditVodForm) => {
+        if (!editingVod) return;
+        updateVod(
+            { vodId: editingVod.vod_id!, title: data.title },
+            {
+                onSuccess: () => {
+                    showToast("VOD updated successfully", "success");
+                    closeEditModal();
+                },
+                onError: () => showToast("Failed to update VOD", "error"),
+            }
+        );
     };
 
-    const deleteVod = async (vodId: string) => {
-        if (!token) return;
+    const handleDelete = (vodId: string) => {
         if (!confirm("Are you sure you want to permanently delete this VOD? This action cannot be undone.")) return;
         
-        setDeletingVod(vodId);
-        try {
-            await axios.delete(`${API}/stream/vod/${vodId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            showToast("VOD deleted", "success");
-            fetchVods();
-        } catch {
-            showToast("Failed to delete VOD", "error");
-        } finally {
-            setDeletingVod(null);
-        }
+        setDeletingVodId(vodId);
+        deleteVod(vodId, {
+            onSuccess: () => showToast("VOD deleted", "success"),
+            onError: () => showToast("Failed to delete VOD", "error"),
+            onSettled: () => setDeletingVodId(null),
+        });
     };
 
     return (
@@ -115,7 +84,7 @@ export default function VideoStudio() {
                     <p className="text-neutral-400 mt-2">Manage your past broadcasts, update thumbnails, or delete old streams.</p>
                 </div>
 
-                {fetching ? (
+                {isFetching ? (
                     <div className="flex justify-center py-20">
                         <Loader2 className="w-8 h-8 text-neutral-500 animate-spin" />
                     </div>
@@ -145,8 +114,8 @@ export default function VideoStudio() {
                                         <button onClick={() => openEditModal(vod)} className="p-3 bg-neon-cyan/20 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-black transition-colors" title="Edit VOD">
                                             <Edit3 size={18} />
                                         </button>
-                                        <button onClick={() => deleteVod(vod.vod_id)} disabled={deletingVod === vod.vod_id} className="p-3 bg-red-500/20 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors" title="Delete VOD">
-                                            {deletingVod === vod.vod_id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                                        <button onClick={() => handleDelete(vod.vod_id!)} disabled={deletingVodId === vod.vod_id} className="p-3 bg-red-500/20 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors" title="Delete VOD">
+                                            {deletingVodId === vod.vod_id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
                                         </button>
                                     </div>
                                 </div>
@@ -157,7 +126,7 @@ export default function VideoStudio() {
                                     <div className="mt-auto pt-3 border-t border-white/5 flex items-center justify-between text-xs text-neutral-500">
                                         <div className="flex items-center gap-1.5">
                                             <Calendar size={12} />
-                                            {new Date(vod.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            {new Date(vod.CreatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                         </div>
                                         <Link to={`/vod/${vod.vod_id}`} className="hover:text-neon-green transition-colors flex items-center gap-1" title="Watch VOD">
                                             Watch <ExternalLink size={12} />
@@ -182,33 +151,34 @@ export default function VideoStudio() {
                                 <X size={20} />
                             </button>
                         </div>
-                        <div className="p-6 overflow-y-auto space-y-6">
-                            <div>
-                                <label className="block text-xs uppercase tracking-widest text-neutral-500 font-bold mb-2">VOD Title</label>
-                                <textarea
-                                    value={editTitle}
-                                    onChange={(e) => setEditTitle(e.target.value)}
-                                    className="w-full h-20 bg-surface-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 outline-none resize-none transition-all"
-                                    placeholder="Enter VOD title..."
-                                />
+                        <form onSubmit={handleSubmit(onSave)} className="flex flex-col flex-1 overflow-hidden">
+                            <div className="p-6 overflow-y-auto space-y-6">
+                                <div>
+                                    <label className="block text-xs uppercase tracking-widest text-neutral-500 font-bold mb-2">VOD Title</label>
+                                    <textarea
+                                        {...register("title", { required: true })}
+                                        className="w-full h-20 bg-surface-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/20 outline-none resize-none transition-all"
+                                        placeholder="Enter VOD title..."
+                                    />
+                                </div>
+                                <div>
+                                    <ThumbnailUploadZone
+                                        currentUrl={watchThumbnail}
+                                        token={token ?? ""}
+                                        onUploaded={(url) => setValue("thumbnail_url", url)}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <ThumbnailUploadZone
-                                    currentUrl={editThumbnail}
-                                    token={token ?? ""}
-                                    onUploaded={(url) => setEditThumbnail(url)}
-                                />
+                            <div className="p-5 border-t border-white/10 bg-surface-900/50 flex justify-end gap-3">
+                                <button type="button" onClick={closeEditModal} className="px-5 py-2.5 text-sm font-bold text-neutral-400 hover:text-white transition-colors">
+                                    Cancel
+                                </button>
+                                <button type="submit" disabled={isSaving} className="flex items-center gap-2 px-5 py-2.5 bg-neon-cyan text-black font-bold rounded-xl text-sm hover:bg-neon-cyan/80 transition-all disabled:opacity-50">
+                                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    Save Changes
+                                </button>
                             </div>
-                        </div>
-                        <div className="p-5 border-t border-white/10 bg-surface-900/50 flex justify-end gap-3">
-                            <button onClick={closeEditModal} className="px-5 py-2.5 text-sm font-bold text-neutral-400 hover:text-white transition-colors">
-                                Cancel
-                            </button>
-                            <button onClick={saveVodChanges} disabled={isSaving} className="flex items-center gap-2 px-5 py-2.5 bg-neon-cyan text-black font-bold rounded-xl text-sm hover:bg-neon-cyan/80 transition-all disabled:opacity-50">
-                                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                Save Changes
-                            </button>
-                        </div>
+                        </form>
                     </div>
                 </div>
             )}

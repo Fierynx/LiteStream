@@ -1,75 +1,37 @@
-import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import axios from "axios";
 import ViewingRoom from "../components/ViewingRoom";
 import { useChat } from "../hooks/useChat";
 
-const API = import.meta.env.VITE_API_URL;
 const VIEWER_NAME = "Viewer" + Math.floor(Math.random() * 9000 + 1000);
 const CATEGORIES = ["FPS", "Esports", "Competitive", "English"];
 
-interface ChannelInfo {
-    stream_key: string;
-    username: string;
-    title: string;
-    thumbnail_url: string;
-    status: "offline" | "live" | "vod";
-}
+import { useChannel } from "../hooks/useStreams";
 
 export default function LiveRoom() {
-    const { streamKey: usernameParam = "test" } = useParams<{
-        streamKey: string;
+    const { username = "test" } = useParams<{
+        username: string;
     }>();
 
-    const [channel, setChannel] = useState<ChannelInfo | null>(null);
-    const [channelError, setChannelError] = useState(false);
-    const [streamStatus, setStreamStatus] = useState<
-        "offline" | "live" | "vod"
-    >("offline");
+    const { data: channelResp, isLoading, isError: channelError } = useChannel(username, true);
+    const channel = channelResp?.data;
 
-    /* ── Fetch channel info once ── */
-    useEffect(() => {
-        axios
-            .get<{ data: ChannelInfo }>(`${API}/channel/${usernameParam}`)
-            .then(({ data }) => {
-                setChannel(data.data);
-                setStreamStatus(data.data.status);
-            })
-            .catch(() => setChannelError(true));
-    }, [usernameParam]);
+    const streamStatus = channel?.status || "offline";
 
-    /* ── Poll status every 3 s ── */
-    useEffect(() => {
-        if (!channel) return;
-        let active = true;
-        const iv = setInterval(() => {
-            axios
-                .get<{ data: { status: string } }>(
-                    `${API}/channel/${usernameParam}`,
-                )
-                .then(({ data }) => {
-                    if (active)
-                        setStreamStatus(
-                            data.data.status as "offline" | "live" | "vod",
-                        );
-                })
-                .catch(() => {});
-        }, 3000);
-        return () => {
-            active = false;
-            clearInterval(iv);
-        };
-    }, [usernameParam, channel]);
-
-    const streamKey = channel?.stream_key ?? "";
-    const vodId = (channel as any)?.vod_id || streamKey;
     const { messages, connected, historyLoaded, sendMessage } = useChat(
-        streamKey,
-        vodId,
+        channel?.stream_key || "",
+        channel?.stream_key || "",
         VIEWER_NAME,
     );
 
     /* ── Error / loading states ── */
+    if (isLoading) {
+        return (
+            <div className="flex-1 flex items-center justify-center text-neutral-400 animate-pulse">
+                Loading...
+            </div>
+        );
+    }
+
     if (channelError) {
         return (
             <div className="flex flex-1 items-center justify-center text-center p-8">
@@ -79,7 +41,7 @@ export default function LiveRoom() {
                     </h2>
                     <p className="text-neutral-500 text-sm mt-2">
                         No channel exists for{" "}
-                        <code className="text-neon-green">{usernameParam}</code>
+                        <code className="text-neon-green">{username}</code>
                         .
                     </p>
                     <Link
@@ -103,11 +65,11 @@ export default function LiveRoom() {
     return (
         <ViewingRoom
             /* Video */
-            videoSrc={`${import.meta.env.VITE_HLS_URL_PREFIX}${streamKey}.m3u8`}
+            videoSrc={`${import.meta.env.VITE_HLS_URL_PREFIX}${channel.stream_key}.m3u8`}
             isLive={true}
             streamStatus={streamStatus}
             viewerCount={1247}
-            vodRedirectKey={streamKey}
+            vodRedirectKey={channel.vod_id || channel.stream_key}
             /* Channel info */
             channel={{
                 username: channel.username,

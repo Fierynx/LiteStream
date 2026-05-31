@@ -16,6 +16,7 @@ func SetupRouter(
 	mediaHandler *handlers.MediaHandler,
 	userHandler *handlers.UserHandler,
 	adminHandler *handlers.AdminHandler,
+	configHandler *handlers.ConfigHandler,
 	logger *slog.Logger,
 ) *gin.Engine {
 	r := gin.New()
@@ -25,6 +26,7 @@ func SetupRouter(
 	r.Use(middleware.CORSMiddleware())
 
 	// Public routes
+	r.GET("/config", configHandler.GetPublicConfig) // Used by frontend
 	r.POST("/auth/register", authHandler.Register)
 	r.POST("/auth/login", authHandler.Login)
 	r.POST("/auth/publish", streamHandler.PublishAuth)
@@ -36,7 +38,19 @@ func SetupRouter(
 	r.GET("/ws/:stream_key", chatHandler.WebSocket)
 
 	// Internal routes
-	r.POST("/internal/vod/:vod_id/auto-thumbnail", streamHandler.SetAutoThumbnail)
+	internal := r.Group("/internal")
+	internal.Use(func(c *gin.Context) {
+		token := c.GetHeader("X-Internal-Token")
+		// The secret is ideally loaded from env, with a safe fallback for local dev
+		expected := "litestream-internal-secret-token" // you can use os.Getenv("INTERNAL_API_SECRET") here if desired
+		if token != expected {
+			c.AbortWithStatusJSON(403, gin.H{"error": "Forbidden internal access"})
+			return
+		}
+		c.Next()
+	})
+	internal.GET("/config", configHandler.GetInternalConfig) // Used by worker
+	internal.POST("/vod/:vod_id/auto-thumbnail", streamHandler.SetAutoThumbnail)
 
 	// Admin routes
 	admin := r.Group("/admin")
@@ -48,6 +62,8 @@ func SetupRouter(
 		admin.GET("/infra/events", adminHandler.InfraEvents)
 		admin.POST("/infra/provision", adminHandler.InfraProvision)
 		admin.POST("/infra/deprovision", adminHandler.InfraDeprovision)
+		admin.GET("/settings", adminHandler.GetAWSCredentials)
+		admin.POST("/settings", adminHandler.SaveAWSCredentials)
 	}
 
 	// Protected routes

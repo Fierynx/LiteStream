@@ -6,24 +6,25 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
+	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
+	myaws "litestream-backend/internal/aws"
 	"litestream-backend/internal/models"
 )
 
 type StreamHandler struct {
-	DB        *gorm.DB
-	RDB       *redis.Client
-	SQSClient *sqs.Client
-	Logger    *slog.Logger
+	DB         *gorm.DB
+	RDB        *redis.Client
+	AwsManager *myaws.Manager
+	Logger     *slog.Logger
 }
 
 func (h *StreamHandler) PublishAuth(c *gin.Context) {
@@ -113,27 +114,24 @@ func (h *StreamHandler) EndStream(c *gin.Context) {
 	h.DB.Save(&stream)
 
 	// Send SQS message to worker to process VOD
-	queueName := os.Getenv("SQS_QUEUE_NAME")
-	if queueName == "" {
-		queueName = "vod-queue"
-	}
-	
-	// Get Queue URL
-	urlResult, err := h.SQSClient.GetQueueUrl(context.Background(), &sqs.GetQueueUrlInput{
-		QueueName: aws.String(queueName),
-	})
-	if err != nil {
-		h.Logger.Error("stream end: failed to get queue URL", "error", err)
+	queueUrl := models.GetSetting(h.DB, "SQS_QUEUE_URL", "")
+	if queueUrl == "" {
+		h.Logger.Error("stream end: SQS_QUEUE_URL is not set in database, skipping SQS message")
 	} else {
-		msgBody := fmt.Sprintf(`{"stream_key":"%s","vod_id":"%s"}`, stream.StreamKey, stream.VodID)
-		_, err = h.SQSClient.SendMessage(context.Background(), &sqs.SendMessageInput{
-			QueueUrl:    urlResult.QueueUrl,
-			MessageBody: aws.String(msgBody),
-		})
+		sqsClient, err := h.AwsManager.GetSQSClient(context.Background())
 		if err != nil {
-			h.Logger.Error("stream end: failed to send sqs message", "error", err)
+			h.Logger.Error("stream end: failed to initialize SQS client dynamically", "error", err)
 		} else {
-			h.Logger.Info("stream end: sqs message enqueued successfully")
+			msgBody := fmt.Sprintf(`{"stream_key":"%s","vod_id":"%s"}`, stream.StreamKey, stream.VodID)
+			_, err = sqsClient.SendMessage(context.Background(), &sqs.SendMessageInput{
+				QueueUrl:    awssdk.String(queueUrl),
+				MessageBody: awssdk.String(msgBody),
+			})
+			if err != nil {
+				h.Logger.Error("stream end: failed to send sqs message", "error", err)
+			} else {
+				h.Logger.Info("stream end: sqs message sent", "vod_id", stream.VodID)
+			}
 		}
 	}
 
@@ -300,15 +298,12 @@ func (h *StreamHandler) SetAutoThumbnail(c *gin.Context) {
 
 	// Only set if current thumbnail is empty
 	if stream.ThumbnailURL == "" && input.S3Key != "" {
-		bucket := os.Getenv("S3_BUCKET_NAME")
-		if bucket == "" {
-			bucket = "vod-bucket"
+		bucket := models.GetSetting(h.DB, "S3_BUCKET_NAME", "vod-bucket")
+		vodBaseURL := models.GetSetting(h.DB, "PUBLIC_VOD_BASE_URL", fmt.Sprintf("http://localhost:4566/%s", bucket))
+		if !strings.HasSuffix(vodBaseURL, "/") {
+			vodBaseURL += "/"
 		}
-		vodBaseURL := os.Getenv("PUBLIC_VOD_BASE_URL")
-		if vodBaseURL == "" {
-			vodBaseURL = fmt.Sprintf("http://localhost:4566/%s", bucket)
-		}
-		publicURL := fmt.Sprintf("%s/%s", vodBaseURL, input.S3Key)
+		publicURL := fmt.Sprintf("%s%s", vodBaseURL, input.S3Key)
 
 		h.DB.Model(&stream).UpdateColumn("thumbnail_url", publicURL)
 		c.JSON(http.StatusOK, gin.H{"message": "auto thumbnail set", "url": publicURL})

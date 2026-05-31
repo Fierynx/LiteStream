@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
 import {
     Play,
     RefreshCw,
@@ -9,20 +8,10 @@ import {
     Video,
 } from "lucide-react";
 import { formatTimeAgo, formatDuration, formatViews } from "../utils/timeFormat";
+import { useStreams, type StreamItem } from "../hooks/useStreams";
 
 /* ─── API type matching the Go Stream model ─── */
-interface StreamRecord {
-    ID: number;
-    stream_key: string;
-    username: string;
-    title: string;
-    thumbnail_url: string;
-    status: "live" | "vod" | "offline";
-    CreatedAt: string;
-    started_at?: string;
-    ended_at?: string;
-    views: number;
-}
+type StreamRecord = StreamItem;
 
 /* ─── Fallback gradient thumbnails ─── */
 const VOD_ACCENTS = [
@@ -104,7 +93,7 @@ function LiveCard({ stream }: { stream: StreamRecord }) {
                                 {stream.username}
                             </p>
                             <div className="flex items-center gap-1 mt-1 text-xs text-neutral-500 font-medium">
-                                <span>{formatViews(stream.views)} • Streaming {formatTimeAgo(stream.started_at || stream.CreatedAt)}</span>
+                                <span>{formatViews(stream.views)} • Streaming {formatTimeAgo(stream.CreatedAt)}</span>
                             </div>
                         </div>
                     </div>
@@ -116,8 +105,7 @@ function LiveCard({ stream }: { stream: StreamRecord }) {
 
 /* ─── VOD Card ─── */
 function VodCard({ stream }: { stream: StreamRecord }) {
-    const durationStr = formatDuration(stream.started_at, stream.ended_at);
-
+    const durationStr = formatDuration(stream.CreatedAt, undefined);
 
     return (
         <Link to={`/vod/${stream.stream_key}`} className="group block">
@@ -159,7 +147,7 @@ function VodCard({ stream }: { stream: StreamRecord }) {
                                 {stream.username}
                             </Link>
                             <div className="flex items-center gap-1 mt-1 text-xs text-neutral-500 font-medium">
-                                <span>{formatViews(stream.views)} • Streamed {formatTimeAgo(stream.started_at || stream.CreatedAt)}</span>
+                                <span>{formatViews(stream.views)} • Streamed {formatTimeAgo(stream.CreatedAt)}</span>
                             </div>
                         </div>
                     </div>
@@ -214,28 +202,7 @@ function EmptyState({ message }: { message: string }) {
 
 /* ─── Home Page ─── */
 export default function Home() {
-    const [streams, setStreams] = useState<StreamRecord[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    const fetchStreams = () => {
-        setLoading(true);
-        setError(null);
-        axios
-            .get<{ data: StreamRecord[] }>(`${import.meta.env.VITE_API_URL}/streams`)
-            .then(({ data }) => setStreams(data.data ?? []))
-            .catch((err) => {
-                console.error("[LiteStream] Failed to fetch streams:", err);
-                setError(
-                    "Could not reach the backend. Is it running on :8000?",
-                );
-            })
-            .finally(() => setLoading(false));
-    };
-
-    useEffect(() => {
-        fetchStreams();
-    }, []);
+    const { data: streams = [], isLoading: loading, error, refetch } = useStreams();
 
     const liveStreams = streams.filter((s) => s.status === "live");
     const vodStreams = streams.filter((s) => s.status === "vod");
@@ -258,7 +225,7 @@ export default function Home() {
                             Go to Dashboard
                         </Link>
                         <button
-                            onClick={fetchStreams}
+                            onClick={() => refetch()}
                             className="flex items-center gap-2 px-4 py-2.5 rounded bg-surface-800 border border-white/10 text-neutral-300 text-sm font-semibold hover:bg-surface-700 hover:text-white transition-colors">
                             <RefreshCw
                                 size={14}
@@ -274,7 +241,7 @@ export default function Home() {
                 {error && (
                     <div className="flex items-center gap-3 px-4 py-3 rounded border border-brand-danger/30 bg-brand-danger/10 text-brand-danger text-sm">
                         <WifiOff size={16} className="shrink-0" />
-                        {error}
+                        {error?.message || "Failed to load streams"}
                     </div>
                 )}
 
@@ -290,7 +257,7 @@ export default function Home() {
                             <EmptyState message="No live channels at the moment." />
                         ) : (
                             liveStreams.map((s) => (
-                                <LiveCard key={s.ID} stream={s} />
+                                <LiveCard key={s.id} stream={s} />
                             ))
                         )}
                     </div>
@@ -308,7 +275,7 @@ export default function Home() {
                             <EmptyState message="No past broadcasts available." />
                         ) : (
                             vodStreams.map((s) => (
-                                <VodCard key={s.ID} stream={s} />
+                                <VodCard key={s.id} stream={s} />
                             ))
                         )}
                     </div>

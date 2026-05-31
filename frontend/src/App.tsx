@@ -12,26 +12,30 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { MiniPlayerProvider } from "./contexts/MiniPlayerContext";
 import GlobalVideoPlayer from "./components/GlobalVideoPlayer";
 
+import { ConfigProvider } from "./contexts/ConfigContext";
+
 export default function App() {
     return (
-        <MiniPlayerProvider>
-            <div className="flex flex-col h-screen w-screen bg-surface-950 text-neutral-100 font-display overflow-hidden">
-                <Navbar />
-                <main className="flex flex-col flex-1 min-h-0 relative overflow-y-auto">
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/channel/:username" element={<ChannelProfile />} />
-                        <Route path="/live/:streamKey" element={<LiveRoom />} />
-                        <Route path="/vod/:vodId" element={<VodRoom />} />
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
-                        <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/studio" element={<VideoStudio />} />
-                        <Route path="/admin" element={<AdminDashboard />} />
-                    </Routes>
-                    <GlobalVideoPlayer />
-                </main>
-            </div>
-        </MiniPlayerProvider>
+        <ConfigProvider>
+            <MiniPlayerProvider>
+                <div className="flex flex-col h-screen w-screen bg-surface-950 text-neutral-100 font-display overflow-hidden">
+                    <Navbar />
+                    <main className="flex flex-col flex-1 min-h-0 relative overflow-y-auto">
+                        <Routes>
+                            <Route path="/" element={<Home />} />
+                            <Route path="/channel/:username" element={<ChannelProfile />} />
+                            <Route path="/live/:username" element={<LiveRoom />} />
+                            <Route path="/vod/:vodId" element={<VodRoom />} />
+                            <Route path="/login" element={<Login />} />
+                            <Route path="/register" element={<Register />} />
+                            <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/studio" element={<VideoStudio />} />
+                            <Route path="/admin" element={<AdminDashboard />} />
+                        </Routes>
+                        <GlobalVideoPlayer />
+                    </main>
+                </div>
+            </MiniPlayerProvider>
+        </ConfigProvider>
     );
 }

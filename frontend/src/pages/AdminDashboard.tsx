@@ -1,18 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Server, Activity, Terminal, AlertTriangle, 
-  Loader2, LogOut, ArrowDown, ShieldAlert
+  Loader2, LogOut, ShieldAlert, Key, ArrowDown
 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { 
+  useAdminLogin, useInfraStatus, useInfraEvents, 
+  useAwsConfig, useSaveAwsConfig, useProvisionInfra, useDeprovisionInfra 
+} from '../hooks/useAdminApi';
+
+interface AwsConfigForm {
+  aws_access_key_id: string;
+  aws_secret_access_key: string;
+  aws_region: string;
+  aws_endpoint: string;
+}
 
 export const AdminDashboard: React.FC = () => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('adminToken'));
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  
   const [logs, setLogs] = useState<string>('');
-  const [infraStatus, setInfraStatus] = useState<string>('UNKNOWN');
-  const [activeTab, setActiveTab] = useState<'infra' | 'logs'>('infra');
-  const [loading, setLoading] = useState(false);
-  const [events, setEvents] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'infra' | 'logs' | 'aws'>('infra');
   
   // UX States
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
@@ -20,50 +28,24 @@ export const AdminDashboard: React.FC = () => {
   const [destroyInput, setDestroyInput] = useState('');
   
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    if (token) {
-      checkInfraStatus();
-      fetchEvents();
-    }
-  }, [token]);
+  // Login Mutation
+  const { mutate: login, isPending: loginLoading } = useAdminLogin();
+  const { register: registerLogin, handleSubmit: handleLoginSubmit } = useForm();
 
-  // Smart Auto-Polling
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (infraStatus.includes('IN_PROGRESS')) {
-      interval = setInterval(() => {
-        checkInfraStatus();
-        fetchEvents();
-      }, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [infraStatus]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_URL}/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem('adminToken', data.token);
-        setToken(data.token);
-      } else {
-        showToast('Invalid credentials', 'error');
-      }
-    } catch (err) {
-      showToast('Login failed', 'error');
-    }
+  const onLogin = (data: any) => {
+    login(data.password, {
+      onSuccess: (res) => {
+        localStorage.setItem('adminToken', res.token);
+        setToken(res.token);
+      },
+      onError: () => showToast('Invalid credentials', 'error'),
+    });
   };
 
   const handleLogout = () => {
@@ -71,38 +53,76 @@ export const AdminDashboard: React.FC = () => {
     setToken(null);
   };
 
-  const checkInfraStatus = async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/infra/status`, {
-        headers: { Authorization: `Bearer ${token}` }
+  // Infrastructure API
+  const { data: statusData } = useInfraStatus(token ?? '');
+  const infraStatus = statusData?.status || 'UNKNOWN';
+
+  const { data: events = [] } = useInfraEvents(token ?? '');
+
+  const { mutate: provision, isPending: provisionLoading } = useProvisionInfra();
+  const { mutate: deprovision, isPending: deprovisionLoading } = useDeprovisionInfra();
+
+  // AWS Config API
+  const { data: awsData } = useAwsConfig(token ?? '');
+  const { mutate: saveAwsConfig, isPending: awsSaving } = useSaveAwsConfig();
+  
+  const { register: registerAws, handleSubmit: handleAwsSubmit, reset: resetAwsForm } = useForm<AwsConfigForm>();
+
+  useEffect(() => {
+    if (awsData) {
+      resetAwsForm({
+        aws_access_key_id: awsData.aws_access_key_id || '',
+        aws_region: awsData.aws_region || 'us-east-1',
+        aws_endpoint: awsData.aws_endpoint || '',
+        aws_secret_access_key: '', // Don't prefill secret
       });
-      if (res.ok) {
-        const data = await res.json();
-        setInfraStatus(data.status);
-      }
-    } catch (err) {
-      console.error(err);
     }
+  }, [awsData, resetAwsForm]);
+
+  const onSaveAwsConfig = (data: AwsConfigForm) => {
+    if (!token) return;
+    saveAwsConfig(
+      { token, config: data },
+      {
+        onSuccess: () => {
+          showToast('AWS configuration updated', 'success');
+        },
+        onError: () => {
+          showToast('Failed to update AWS config', 'error');
+        },
+      }
+    );
   };
 
-  const fetchEvents = async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/infra/events`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+  const handleProvision = async () => {
+    if (!token) return;
+    provision(token, {
+      onSuccess: () => showToast('Provisioning started', 'success'),
+      onError: () => showToast('Provisioning failed', 'error'),
+    });
   };
+
+  const handleDestroy = async () => {
+    if (!token) return;
+    if (destroyInput !== 'DESTROY') return;
+    
+    deprovision(token, {
+      onSuccess: () => {
+        showToast('Destruction initiated', 'success');
+        setShowDestroyModal(false);
+        setDestroyInput('');
+      },
+      onError: () => showToast('Destruction failed', 'error'),
+    });
+  };
+
+  useEffect(() => {
+  }, [events]);
 
   const fetchLogs = async (container: string) => {
     setLogs('Fetching...');
     try {
-      const res = await fetch(`${API_URL}/admin/logs/${container}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/admin/logs/${container}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -116,50 +136,11 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const provisionInfra = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/admin/infra/provision`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showToast('Deploying Infrastructure', 'success');
-        checkInfraStatus();
-        fetchEvents();
-      } else {
-        showToast('Deploy Failed', 'error');
-      }
-    } catch (err) {
-      showToast('Deploy Error', 'error');
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-    setLoading(false);
-  };
-
-  const deprovisionInfra = async () => {
-    if (destroyInput !== 'DESTROY') return;
-    
-    setShowDestroyModal(false);
-    setDestroyInput('');
-    setLoading(true);
-    
-    try {
-      const res = await fetch(`${API_URL}/admin/infra/deprovision`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showToast('Deprovisioning Initiated', 'success');
-        checkInfraStatus();
-        fetchEvents();
-      } else {
-        showToast('Failed to destroy', 'error');
-      }
-    } catch (err) {
-      showToast('Destroy Error', 'error');
-    }
-    setLoading(false);
-  };
+  }, [logs]);
 
   // Colorize logs helper
   const renderColorizedLogs = () => {
@@ -190,23 +171,15 @@ export const AdminDashboard: React.FC = () => {
             <ShieldAlert className="w-8 h-8 text-purple-500 mr-3" />
             <h2 className="text-2xl font-bold tracking-tight">Admin</h2>
           </div>
-          <form onSubmit={handleLogin} className="space-y-5">
-            <input
-              type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-black/50 border border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500 transition-colors placeholder:text-zinc-600"
-            />
+          <form onSubmit={handleLoginSubmit(onLogin)} className="space-y-5">
             <input
               type="password"
               placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              {...registerLogin("password", { required: true })}
               className="w-full bg-black/50 border border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500 transition-colors placeholder:text-zinc-600"
             />
-            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-lg transition-all active:scale-95 shadow-[0_0_20px_rgba(147,51,234,0.3)]">
-              Authenticate
+            <button type="submit" disabled={loginLoading} className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-all active:scale-95 shadow-[0_0_20px_rgba(147,51,234,0.3)]">
+              {loginLoading ? 'Authenticating...' : 'Authenticate'}
             </button>
           </form>
         </div>
@@ -245,11 +218,11 @@ export const AdminDashboard: React.FC = () => {
                 Cancel
               </button>
               <button 
-                onClick={deprovisionInfra}
-                disabled={destroyInput !== 'DESTROY'}
+                onClick={handleDestroy}
+                disabled={destroyInput !== 'DESTROY' || deprovisionLoading}
                 className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:hover:bg-red-600 py-3 rounded-lg text-sm font-medium transition-colors"
               >
-                Confirm Delete
+                {deprovisionLoading ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>
@@ -271,12 +244,84 @@ export const AdminDashboard: React.FC = () => {
             <button onClick={() => setActiveTab('logs')} className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'logs' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
               <Terminal className="w-4 h-4 mr-2" /> Logs
             </button>
+            <button onClick={() => setActiveTab('aws')} className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'aws' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
+              <Key className="w-4 h-4 mr-2" /> AWS Config
+            </button>
             <div className="w-px h-4 bg-zinc-800 mx-2"></div>
             <button onClick={handleLogout} className="p-2 text-zinc-500 hover:text-red-400 transition-colors" title="Logout">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </header>
+
+        {/* Tab: AWS Settings */}
+        {activeTab === 'aws' && (
+          <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-6 lg:p-10 backdrop-blur-sm shadow-xl flex-1 max-w-4xl mx-auto w-full">
+            <div className="flex items-center gap-4 mb-8 border-b border-white/10 pb-6">
+              <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center border border-orange-500/20">
+                <Server className="text-orange-500 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">AWS Configuration</h2>
+                <p className="text-sm text-neutral-400">Manage S3 and SQS credentials for streaming storage.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleAwsSubmit(onSaveAwsConfig)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Access Key ID</label>
+                  <input 
+                    type="text"
+                    {...registerAws("aws_access_key_id")}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 outline-none transition-all font-mono text-sm"
+                    placeholder="AKIAIOSFODNN7EXAMPLE"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Secret Access Key</label>
+                  <input 
+                    type="password"
+                    {...registerAws("aws_secret_access_key")}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 outline-none transition-all font-mono text-sm"
+                    placeholder="Leave blank to keep existing"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AWS Region</label>
+                  <input 
+                    type="text"
+                    {...registerAws("aws_region", { required: true })}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 outline-none transition-all font-mono text-sm"
+                    placeholder="us-east-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom Endpoint</label>
+                  <input 
+                    type="text"
+                    {...registerAws("aws_endpoint")}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 outline-none transition-all font-mono text-sm"
+                    placeholder="http://localstack:4566 (Optional)"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800/50">
+                <button 
+                  type="submit" 
+                  disabled={awsSaving}
+                  className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(147,51,234,0.2)]"
+                >
+                  {awsSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Save & Sync Credentials"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Tab: Infrastructure */}
         {activeTab === 'infra' && (
@@ -295,11 +340,11 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <button onClick={provisionInfra} disabled={loading || inProgress} className="w-full group relative flex items-center justify-center bg-white text-black hover:bg-zinc-200 disabled:opacity-50 font-semibold py-3 px-4 rounded-xl transition-all">
-                    {loading && !inProgress ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  <button onClick={handleProvision} disabled={provisionLoading || inProgress} className="w-full group relative flex items-center justify-center bg-white text-black hover:bg-zinc-200 disabled:opacity-50 font-semibold py-3 px-4 rounded-xl transition-all">
+                    {provisionLoading && !inProgress ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Deploy Infrastructure
                   </button>
-                  <button onClick={() => setShowDestroyModal(true)} disabled={loading || inProgress || infraStatus === 'DOES_NOT_EXIST'} className="w-full flex items-center justify-center bg-transparent border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-30 font-medium py-3 px-4 rounded-xl transition-all">
+                  <button onClick={() => setShowDestroyModal(true)} disabled={deprovisionLoading || inProgress || infraStatus === 'DOES_NOT_EXIST'} className="w-full flex items-center justify-center bg-transparent border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-30 font-medium py-3 px-4 rounded-xl transition-all">
                     Destroy Stack
                   </button>
                 </div>
@@ -324,7 +369,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <div className="relative border-l border-zinc-800 ml-3 space-y-6 pb-4">
-                      {events.map((e, idx) => {
+                      {events.map((e: any, idx: number) => {
                         const isErr = e.resource_status.includes('FAILED');
                         const isSucc = e.resource_status.includes('COMPLETE');
                         

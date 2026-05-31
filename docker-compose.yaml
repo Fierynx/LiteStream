@@ -8,7 +8,7 @@ services:
             [
                 "/bin/sh",
                 "-c",
-                "chmod +x /usr/local/bin/notify_vod.sh && chmod +x /usr/local/bin/notify_start.sh && chmod 777 /tmp/hls && nginx -g 'daemon off;'",
+                "chmod +x /usr/local/bin/notify_vod.sh && chmod 777 /tmp/hls && nginx -g 'daemon off;'",
             ]
         ports:
             - "1935:1935"
@@ -18,7 +18,6 @@ services:
             - hls_data:/tmp/hls
             # Mount the VOD notifier scripts. Not :ro so the execute bit survives.
             - ./notify_vod.sh:/usr/local/bin/notify_vod.sh
-            - ./notify_start.sh:/usr/local/bin/notify_start.sh
         depends_on:
             localstack:
                 condition: service_healthy

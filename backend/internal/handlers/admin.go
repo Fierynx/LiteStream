@@ -10,17 +10,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
 	"litestream-backend/internal/config"
+	"litestream-backend/internal/models"
+	myaws "litestream-backend/internal/aws"
+
+	"gorm.io/gorm"
 )
 
 type AdminHandler struct {
-	CFClient *cloudformation.Client
+	AwsManager *myaws.Manager
+	DB         *gorm.DB
 }
 
 func issueAdminJWT() (string, error) {
@@ -141,9 +146,15 @@ func (h *AdminHandler) Logs(c *gin.Context) {
 }
 
 func (h *AdminHandler) InfraStatus(c *gin.Context) {
+	cfClient, err := h.AwsManager.GetCFClient(context.Background())
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": "DOES_NOT_EXIST"})
+		return
+	}
+
 	stackName := "LiteStreamStack"
-	out, err := h.CFClient.DescribeStacks(context.Background(), &cloudformation.DescribeStacksInput{
-		StackName: aws.String(stackName),
+	out, err := cfClient.DescribeStacks(context.Background(), &cloudformation.DescribeStacksInput{
+		StackName: awssdk.String(stackName),
 	})
 
 	if err != nil {
@@ -152,13 +163,41 @@ func (h *AdminHandler) InfraStatus(c *gin.Context) {
 	}
 
 	if len(out.Stacks) > 0 {
-		c.JSON(http.StatusOK, gin.H{"status": string(out.Stacks[0].StackStatus)})
+		status := string(out.Stacks[0].StackStatus)
+		
+		if status == "CREATE_COMPLETE" || status == "UPDATE_COMPLETE" {
+			for _, o := range out.Stacks[0].Outputs {
+				var key, val string
+				if *o.OutputKey == "VodCDNDomainName" {
+					key = "PUBLIC_VOD_BASE_URL"
+					val = "https://" + *o.OutputValue + "/vod/"
+				} else if *o.OutputKey == "VodStorageBucketName" {
+					key = "S3_BUCKET_NAME"
+					val = *o.OutputValue
+				} else if *o.OutputKey == "VodIngestQueueUrl" {
+					key = "SQS_QUEUE_URL"
+					val = *o.OutputValue
+				}
+
+				if key != "" {
+					h.DB.Save(&models.Setting{Key: key, Value: val, UpdatedAt: time.Now()})
+				}
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": status})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"status": "DOES_NOT_EXIST"})
 	}
 }
 
 func (h *AdminHandler) InfraProvision(c *gin.Context) {
+	cfClient, err := h.AwsManager.GetCFClient(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get AWS CF client"})
+		return
+	}
+
 	stackName := "LiteStreamStack"
 	
 	templateData, err := os.ReadFile("/app/template.yaml")
@@ -167,9 +206,9 @@ func (h *AdminHandler) InfraProvision(c *gin.Context) {
 		return
 	}
 
-	_, err = h.CFClient.CreateStack(context.Background(), &cloudformation.CreateStackInput{
-		StackName:    aws.String(stackName),
-		TemplateBody: aws.String(string(templateData)),
+	_, err = cfClient.CreateStack(context.Background(), &cloudformation.CreateStackInput{
+		StackName:    awssdk.String(stackName),
+		TemplateBody: awssdk.String(string(templateData)),
 		Capabilities: []types.Capability{types.CapabilityCapabilityNamedIam},
 	})
 	if err != nil {
@@ -180,21 +219,36 @@ func (h *AdminHandler) InfraProvision(c *gin.Context) {
 }
 
 func (h *AdminHandler) InfraDeprovision(c *gin.Context) {
+	cfClient, err := h.AwsManager.GetCFClient(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get AWS CF client"})
+		return
+	}
+
 	stackName := "LiteStreamStack"
-	_, err := h.CFClient.DeleteStack(context.Background(), &cloudformation.DeleteStackInput{
-		StackName: aws.String(stackName),
+	_, err = cfClient.DeleteStack(context.Background(), &cloudformation.DeleteStackInput{
+		StackName: awssdk.String(stackName),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	h.DB.Where("key IN ?", []string{"PUBLIC_VOD_BASE_URL", "S3_BUCKET_NAME", "SQS_QUEUE_URL"}).Delete(&models.Setting{})
+
 	c.JSON(http.StatusOK, gin.H{"message": "deprovisioning started"})
 }
 
 func (h *AdminHandler) InfraEvents(c *gin.Context) {
+	cfClient, err := h.AwsManager.GetCFClient(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get AWS CF client"})
+		return
+	}
+
 	stackName := "LiteStreamStack"
-	out, err := h.CFClient.DescribeStackEvents(context.Background(), &cloudformation.DescribeStackEventsInput{
-		StackName: aws.String(stackName),
+	out, err := cfClient.DescribeStackEvents(context.Background(), &cloudformation.DescribeStackEventsInput{
+		StackName: awssdk.String(stackName),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -224,4 +278,45 @@ func (h *AdminHandler) InfraEvents(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, events)
+}
+
+func (h *AdminHandler) GetAWSCredentials(c *gin.Context) {
+	accessKey := models.GetSetting(h.DB, "AWS_ACCESS_KEY_ID", "")
+	secretKey := models.GetSetting(h.DB, "AWS_SECRET_ACCESS_KEY", "")
+	region := models.GetSetting(h.DB, "AWS_REGION", "us-east-1")
+	endpoint := models.GetSetting(h.DB, "AWS_ENDPOINT", "")
+
+	hasSecret := secretKey != ""
+
+	c.JSON(http.StatusOK, gin.H{
+		"aws_access_key_id": accessKey,
+		"aws_region":        region,
+		"aws_endpoint":      endpoint,
+		"has_secret":        hasSecret,
+	})
+}
+
+func (h *AdminHandler) SaveAWSCredentials(c *gin.Context) {
+	var req struct {
+		AccessKey string `json:"aws_access_key_id"`
+		SecretKey string `json:"aws_secret_access_key"`
+		Region    string `json:"aws_region"`
+		Endpoint  string `json:"aws_endpoint"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	h.DB.Save(&models.Setting{Key: "AWS_ACCESS_KEY_ID", Value: req.AccessKey, UpdatedAt: time.Now()})
+	
+	// Only update secret key if a new one is provided.
+	if req.SecretKey != "" {
+		h.DB.Save(&models.Setting{Key: "AWS_SECRET_ACCESS_KEY", Value: req.SecretKey, UpdatedAt: time.Now()})
+	}
+	
+	h.DB.Save(&models.Setting{Key: "AWS_REGION", Value: req.Region, UpdatedAt: time.Now()})
+	h.DB.Save(&models.Setting{Key: "AWS_ENDPOINT", Value: req.Endpoint, UpdatedAt: time.Now()})
+
+	c.JSON(http.StatusOK, gin.H{"message": "AWS credentials saved"})
 }

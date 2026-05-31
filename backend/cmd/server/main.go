@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"log/slog"
 	"os"
@@ -28,35 +27,19 @@ func main() {
 	}
 	logger.Info("Redis initialized")
 
-	ctx := context.Background()
-	s3Client, err := aws.InitS3(ctx)
-	if err != nil {
-		log.Fatalf("Failed to initialize S3: %v", err)
-	}
-	logger.Info("S3 client initialized")
-
-	cfClient, err := aws.InitCloudFormation(ctx)
-	if err != nil {
-		log.Fatalf("Failed to initialize CloudFormation: %v", err)
-	}
-	logger.Info("CloudFormation client initialized")
-
-	sqsClient, err := aws.InitSQS(ctx)
-	if err != nil {
-		log.Fatalf("Failed to initialize SQS: %v", err)
-	}
-	logger.Info("SQS client initialized")
+	awsManager := aws.NewManager(db)
 
 	hub := ws.NewHub(rdb, db, logger)
 
 	authHandler := &handlers.AuthHandler{DB: db, Logger: logger}
-	streamHandler := &handlers.StreamHandler{DB: db, RDB: rdb, SQSClient: sqsClient, Logger: logger}
+	streamHandler := &handlers.StreamHandler{DB: db, RDB: rdb, AwsManager: awsManager, Logger: logger}
 	chatHandler := &handlers.ChatHandler{DB: db, Hub: hub}
-	mediaHandler := &handlers.MediaHandler{S3Client: s3Client, Logger: logger}
+	mediaHandler := &handlers.MediaHandler{DB: db, AwsManager: awsManager, Logger: logger}
 	userHandler := &handlers.UserHandler{DB: db}
-	adminHandler := &handlers.AdminHandler{CFClient: cfClient}
+	adminHandler := &handlers.AdminHandler{AwsManager: awsManager, DB: db}
+	configHandler := &handlers.ConfigHandler{DB: db}
 
-	r := router.SetupRouter(authHandler, streamHandler, chatHandler, mediaHandler, userHandler, adminHandler, logger)
+	r := router.SetupRouter(authHandler, streamHandler, chatHandler, mediaHandler, userHandler, adminHandler, configHandler, logger)
 
 	logger.Info("Starting backend server on :8000")
 	if err := r.Run(":8000"); err != nil {

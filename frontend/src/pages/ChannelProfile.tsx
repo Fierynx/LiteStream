@@ -1,87 +1,41 @@
-import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import axios from "axios";
 import { Play, Video, Loader2, WifiOff, Heart, HeartOff } from "lucide-react";
-
 import { useToast } from "../contexts/ToastContext";
 import { useAuth } from "../contexts/AuthContext";
 import { formatTimeAgo, formatDuration, formatViews } from "../utils/timeFormat";
-
-interface StreamRecord {
-    ID: number;
-    vod_id?: string;
-    stream_key: string;
-    username: string;
-    title: string;
-    thumbnail_url: string;
-    status: "live" | "vod" | "offline";
-    CreatedAt: string;
-    started_at?: string;
-    ended_at?: string;
-    views: number;
-}
-
-interface ChannelData {
-    data: StreamRecord;
-    vods: StreamRecord[];
-}
+import { useChannel } from "../hooks/useStreams";
+import { useIsFollowing, useFollow, useUnfollow } from "../hooks/useUser";
 
 export default function ChannelProfile() {
     const { showToast } = useToast();
-    const { user, token } = useAuth();
-    const { username } = useParams();
-    const [channel, setChannel] = useState<ChannelData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [isFollowing, setIsFollowing] = useState(false);
-    const [followLoading, setFollowLoading] = useState(false);
+    const { user } = useAuth();
+    const { username = "" } = useParams<{ username: string }>();
     
+    const { data: channelData, isLoading, isError } = useChannel(username);
+    const { data: isFollowing = false } = useIsFollowing(username, !!user);
+    
+    const { mutate: follow, isPending: followLoading } = useFollow();
+    const { mutate: unfollow } = useUnfollow();
+    
+    const channelInfo = channelData?.data;
+    const vods = channelData?.vods ?? [];
+    const isLive = channelInfo?.status === "live";
+
     const isOwnChannel = user?.username === username;
 
-    useEffect(() => {
-        setLoading(true);
-        axios
-            .get<ChannelData>(`${import.meta.env.VITE_API_URL}/channel/${username}`)
-            .then(({ data }) => setChannel(data))
-            .catch(() => setError("Channel not found"))
-            .finally(() => setLoading(false));
-
-        if (token) {
-            axios
-                .get(`${import.meta.env.VITE_API_URL}/user/isfollowing/${username}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                })
-                .then(({ data }) => setIsFollowing(data.following))
-                .catch(() => {});
-        }
-    }, [username, token]);
-
     const handleFollow = async () => {
-        if (!token) {
+        if (!user) {
             showToast("Please login to follow channels.", "warning");
             return;
         }
-        setFollowLoading(true);
-        try {
-            if (isFollowing) {
-                await axios.delete(`${import.meta.env.VITE_API_URL}/user/unfollow/${username}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setIsFollowing(false);
-            } else {
-                await axios.post(`${import.meta.env.VITE_API_URL}/user/follow/${username}`, {}, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setIsFollowing(true);
-            }
-        } catch (e) {
-            console.error("Follow error:", e);
-        } finally {
-            setFollowLoading(false);
+        if (isFollowing) {
+            unfollow(username);
+        } else {
+            follow(username);
         }
     };
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="flex flex-1 items-center justify-center">
                 <Loader2 className="w-8 h-8 text-neon-green animate-spin" />
@@ -89,17 +43,14 @@ export default function ChannelProfile() {
         );
     }
 
-    if (error || !channel) {
+    if (isError || !channelData) {
         return (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 text-neutral-400">
                 <WifiOff size={48} className="opacity-20" />
-                <p>{error || "Channel not found"}</p>
+                <p>Channel not found</p>
             </div>
         );
     }
-
-    const { data: current, vods } = channel;
-    const isLive = current.status === "live";
 
     return (
         <div className="flex-1 overflow-y-auto scrollbar-thin bg-surface-950">
@@ -202,7 +153,7 @@ export default function ChannelProfile() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {vods.map((vod) => (
                                 <Link
-                                    key={vod.ID}
+                                    key={vod.id}
                                     to={`/vod/${vod.vod_id || vod.stream_key}`}
                                     className="group block">
                                     <div className="relative rounded-xl overflow-hidden bg-surface-850 border border-white/[0.06] hover:border-neon-cyan/50 transition-colors">
@@ -230,9 +181,9 @@ export default function ChannelProfile() {
                                                     />
                                                 </div>
                                             </div>
-                                            {formatDuration(vod.started_at, vod.ended_at) && (
+                                            {formatDuration(vod.CreatedAt, undefined) && (
                                                 <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[11px] font-bold px-1.5 py-0.5 rounded z-10">
-                                                    {formatDuration(vod.started_at, vod.ended_at)}
+                                                    {formatDuration(vod.CreatedAt, undefined)}
                                                 </div>
                                             )}
                                         </div>
@@ -241,7 +192,7 @@ export default function ChannelProfile() {
                                                 {vod.title || "Untitled VOD"}
                                             </h3>
                                             <p className="text-xs text-neutral-400 mt-1 font-medium">
-                                                {formatViews(vod.views)} • Streamed {formatTimeAgo(vod.started_at || vod.CreatedAt)}
+                                                {formatViews(vod.views)} • Streamed {formatTimeAgo(vod.CreatedAt)}
                                             </p>
                                         </div>
                                     </div>

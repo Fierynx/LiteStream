@@ -20,8 +20,7 @@ interface AuthUser {
 interface AuthContextValue {
     user: AuthUser | null;
     token: string | null;
-    login: (username: string, password: string) => Promise<void>;
-    register: (username: string, password: string) => Promise<void>;
+    saveSession: (token: string, username: string, streamKey: string, id?: number) => void;
     logout: () => void;
     isLoading: boolean;
 }
@@ -89,30 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         [],
     );
 
-    const login = useCallback(
-        async (username: string, password: string) => {
-            const { data } = await axios.post<{
-                token: string;
-                username: string;
-                stream_key: string;
-            }>(`${API}/auth/login`, { username, password });
-            saveSession(data.token, data.username, data.stream_key);
-        },
-        [saveSession],
-    );
-
-    const register = useCallback(
-        async (username: string, password: string) => {
-            const { data } = await axios.post<{
-                token: string;
-                username: string;
-                stream_key: string;
-            }>(`${API}/auth/register`, { username, password });
-            saveSession(data.token, data.username, data.stream_key);
-        },
-        [saveSession],
-    );
-
     const logout = useCallback(() => {
         localStorage.removeItem("ls_token");
         setToken(null);
@@ -121,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return (
         <AuthContext.Provider
-            value={{ user, token, login, register, logout, isLoading }}>
+            value={{ user, token, logout, isLoading, saveSession }}>
             {children}
         </AuthContext.Provider>
     );

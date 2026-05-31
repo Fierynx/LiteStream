@@ -1,37 +1,20 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
 import ViewingRoom from "../components/ViewingRoom";
 import type { ChatMsg } from "../components/ChatSidebar";
-
-const API = import.meta.env.VITE_API_URL;
-
-interface ApiChatMessage {
-    ID: number;
-    user: string;
-    text: string;
-    color: string;
-    video_offset: number;
-}
-
-interface ChannelInfo {
-    stream_key: string;
-    username: string;
-    title: string;
-    thumbnail_url: string;
-    status: string;
-}
+import { useConfig } from "../contexts/ConfigContext";
+import { useStreams } from "../hooks/useStreams";
+import { useChatHistory, useIncrementView } from "../hooks/useVod";
 
 export default function VodRoom() {
     const { vodId = "test" } = useParams<{ vodId: string }>();
+    const { config } = useConfig();
 
     const [isReady, setIsReady] = useState(false);
-    const [channel, setChannel] = useState<ChannelInfo | null>(null);
-    const [allMessages, setAllMessages] = useState<ChatMsg[]>([]);
-    const [chatLoaded, setChatLoaded] = useState(false);
     const [playbackTime, setPlaybackTime] = useState(0);
 
-    const [vodSrc, setVodSrc] = useState("");
+    const { data: streams = [] } = useStreams();
+    const { mutate: incrementView } = useIncrementView();
 
     /* ── Mount fade-in ── */
     useEffect(() => {
@@ -39,52 +22,36 @@ export default function VodRoom() {
         return () => clearTimeout(t);
     }, []);
 
-    /* ── Resolve channel from stream list ── */
-    useEffect(() => {
-        axios
-            .get<{ data: ChannelInfo[] }>(`${API}/streams`)
-            .then(({ data }) => {
-                const list = data.data ?? [];
-                let match = list.find((s) => (s as any).vod_id === vodId);
-                if (!match) {
-                    match = list.find((s) => s.stream_key === vodId && s.status === "vod");
-                }
+    const channel = useMemo(() => {
+        let match = streams.find((s) => s.vod_id === vodId);
+        if (!match) {
+            match = streams.find((s) => s.stream_key === vodId && s.status === "vod");
+        }
+        return match;
+    }, [streams, vodId]);
 
-                if (match) {
-                    setChannel(match);
-                    const vID = (match as any).vod_id || match.stream_key;
-                    setVodSrc(`${import.meta.env.VITE_VOD_URL_PREFIX}${vID}/${match.stream_key}.m3u8`);
-                } else {
-                    setVodSrc(`${import.meta.env.VITE_VOD_URL_PREFIX}${vodId}/${vodId}.m3u8`);
-                }
-            })
-            .catch(() => {
-                setVodSrc(`${import.meta.env.VITE_VOD_URL_PREFIX}${vodId}/${vodId}.m3u8`);
-            });
-    }, [vodId]);
+    const vID = channel?.vod_id || channel?.stream_key || vodId;
+    const { data: rawMessages, isSuccess: chatLoaded } = useChatHistory(vID, !!channel);
 
-    /* ── Fetch full chat history once & Increment View ── */
     useEffect(() => {
-        if (!channel) return;
-        const vID = (channel as any).vod_id || channel.stream_key;
-        
-        axios.post(`${API}/streams/${vID}/view`).catch(() => {});
-        
-        axios
-            .get<{ data: ApiChatMessage[] }>(`${API}/chat/${vID}`)
-            .then(({ data }) => {
-                const msgs: ChatMsg[] = (data.data ?? []).map((r, i) => ({
-                    id: i,
-                    user: r.user,
-                    color: r.color ?? "#39ff14",
-                    text: r.text,
-                    videoOffset: r.video_offset ?? 0,
-                }));
-                setAllMessages(msgs);
-            })
-            .catch(() => {})
-            .finally(() => setChatLoaded(true));
-    }, [channel]);
+        if (channel) {
+            incrementView(vID);
+        }
+    }, [channel, vID, incrementView]);
+
+    const vodSrc = channel
+        ? `${config.PUBLIC_VOD_BASE_URL || import.meta.env.VITE_VOD_URL_PREFIX}${vID}/${channel.stream_key}.m3u8`
+        : `${config.PUBLIC_VOD_BASE_URL || import.meta.env.VITE_VOD_URL_PREFIX}${vodId}/${vodId}.m3u8`;
+
+    const allMessages: ChatMsg[] = useMemo(() => {
+        return (rawMessages || []).map((r, i) => ({
+            id: i,
+            user: r.user,
+            color: r.color ?? "#39ff14",
+            text: r.text,
+            videoOffset: r.video_offset ?? 0,
+        }));
+    }, [rawMessages]);
 
     useEffect(() => {
         const handleTime = (e: any) => {
