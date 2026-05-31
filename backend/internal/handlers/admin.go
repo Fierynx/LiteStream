@@ -47,15 +47,14 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		return
 	}
 
-	adminUser := os.Getenv("ADMIN_USER")
 	adminPass := os.Getenv("ADMIN_PASS")
 
-	if adminUser == "" || adminPass == "" {
+	if adminPass == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin credentials not configured on server"})
 		return
 	}
 
-	if input.Username == adminUser && input.Password == adminPass {
+	if input.Password == adminPass {
 		token, err := issueAdminJWT()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue token"})
