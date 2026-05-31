@@ -303,7 +303,8 @@ func (h *StreamHandler) SetAutoThumbnail(c *gin.Context) {
 		if !strings.HasSuffix(vodBaseURL, "/") {
 			vodBaseURL += "/"
 		}
-		publicURL := fmt.Sprintf("%s%s", vodBaseURL, input.S3Key)
+		urlPath := strings.TrimPrefix(input.S3Key, "vod/")
+		publicURL := fmt.Sprintf("%s%s", vodBaseURL, urlPath)
 
 		h.DB.Model(&stream).UpdateColumn("thumbnail_url", publicURL)
 		c.JSON(http.StatusOK, gin.H{"message": "auto thumbnail set", "url": publicURL})
