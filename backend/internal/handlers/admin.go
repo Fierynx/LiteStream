@@ -335,7 +335,8 @@ func (h *AdminHandler) GetUsageMetrics(c *gin.Context) {
 
 	cfClient, err := h.AwsManager.GetCFClient(context.Background())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init CF client"})
+		// Gracefully fallback if AWS credentials are not configured
+		c.JSON(http.StatusOK, gin.H{"cloudfront_bytes_30d": 0, "s3_bytes_current": 0})
 		return
 	}
 
@@ -346,31 +347,24 @@ func (h *AdminHandler) GetUsageMetrics(c *gin.Context) {
 	distributionId := ""
 	if err == nil && res != nil {
 		for _, r := range res.StackResources {
-			if *r.LogicalResourceId == "VodCDN" {
-				distributionId = *r.PhysicalResourceId
+			if r.LogicalResourceId != nil && *r.LogicalResourceId == "VodCDN" {
+				if r.PhysicalResourceId != nil {
+					distributionId = *r.PhysicalResourceId
+				}
 				break
 			}
 		}
 	}
 
-	cwGlobal, err := h.AwsManager.GetCloudWatchClient(context.Background(), true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init CloudWatch global client"})
-		return
-	}
-
-	cwLocal, err := h.AwsManager.GetCloudWatchClient(context.Background(), false)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to init CloudWatch local client"})
-		return
-	}
+	cwGlobal, _ := h.AwsManager.GetCloudWatchClient(context.Background(), true)
+	cwLocal, _ := h.AwsManager.GetCloudWatchClient(context.Background(), false)
 
 	endTime := time.Now()
 	startTime30d := endTime.Add(-30 * 24 * time.Hour)
 	startTime7d := endTime.Add(-7 * 24 * time.Hour) // Look back 7 days for S3 daily metric to ensure data point
 
 	var cfBytesDownloaded float64 = 0
-	if distributionId != "" {
+	if distributionId != "" && cwGlobal != nil {
 		metrics, err := cwGlobal.GetMetricStatistics(context.Background(), &cloudwatch.GetMetricStatisticsInput{
 			Namespace:  awssdk.String("AWS/CloudFront"),
 			MetricName: awssdk.String("BytesDownloaded"),
@@ -383,7 +377,7 @@ func (h *AdminHandler) GetUsageMetrics(c *gin.Context) {
 			Period:     awssdk.Int32(86400), // 1 day period, we sum all 30 days
 			Statistics: []cloudwatchtypes.Statistic{cloudwatchtypes.StatisticSum},
 		})
-		if err == nil && len(metrics.Datapoints) > 0 {
+		if err == nil && metrics != nil && len(metrics.Datapoints) > 0 {
 			for _, dp := range metrics.Datapoints {
 				if dp.Sum != nil {
 					cfBytesDownloaded += *dp.Sum
@@ -393,7 +387,7 @@ func (h *AdminHandler) GetUsageMetrics(c *gin.Context) {
 	}
 
 	var s3BucketSizeBytes float64 = 0
-	if bucket != "" {
+	if bucket != "" && cwLocal != nil {
 		metrics, err := cwLocal.GetMetricStatistics(context.Background(), &cloudwatch.GetMetricStatisticsInput{
 			Namespace:  awssdk.String("AWS/S3"),
 			MetricName: awssdk.String("BucketSizeBytes"),
@@ -406,11 +400,11 @@ func (h *AdminHandler) GetUsageMetrics(c *gin.Context) {
 			Period:     awssdk.Int32(86400), // 1 day
 			Statistics: []cloudwatchtypes.Statistic{cloudwatchtypes.StatisticAverage},
 		})
-		if err == nil && len(metrics.Datapoints) > 0 {
-			// Get latest data point
+		if err == nil && metrics != nil && len(metrics.Datapoints) > 0 {
+			// Get latest data point safely
 			latest := metrics.Datapoints[0]
 			for _, dp := range metrics.Datapoints {
-				if dp.Timestamp.After(*latest.Timestamp) {
+				if dp.Timestamp != nil && latest.Timestamp != nil && dp.Timestamp.After(*latest.Timestamp) {
 					latest = dp
 				}
 			}
