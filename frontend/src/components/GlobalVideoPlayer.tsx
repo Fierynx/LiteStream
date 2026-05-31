@@ -32,7 +32,7 @@ function VolumeSlider({
     onChange: (v: number) => void;
 }) {
     return (
-        <div className="relative flex items-center w-20 h-4 group/vol">
+        <div className="relative flex items-center w-0 group-hover/vol-container:w-16 transition-all duration-300 h-4 group/vol overflow-hidden">
             <input
                 type="range"
                 min={0}
@@ -124,12 +124,12 @@ function Scrubber({
                 )}
                 {/* Main progress */}
                 <div
-                    className="absolute inset-y-0 left-0 bg-neon-green rounded-full pointer-events-none"
+                    className="absolute inset-y-0 left-0 bg-[#ff0000] rounded-full pointer-events-none"
                     style={{ width: `${pct}%` }}
                 />
                 {/* Thumb */}
                 <div
-                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-neon-green shadow-[0_0_10px_rgba(57,255,20,0.5)] pointer-events-none transition-[width,height,opacity,transform] duration-150 ${isHovering ? "w-3.5 h-3.5 opacity-100 scale-100" : "w-0 h-0 opacity-0 scale-50"}`}
+                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-[#ff0000] pointer-events-none transition-[width,height,opacity,transform] duration-150 ${isHovering ? "w-3.5 h-3.5 opacity-100 scale-100" : "w-0 h-0 opacity-0 scale-50"}`}
                     style={{ left: `${pct}%` }}
                 />
             </div>
@@ -473,7 +473,7 @@ const GlobalVideoPlayer: React.FC = () => {
                                 )}
                                 {viewerCount !== undefined && !hasError && (
                                     <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-md shrink-0">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#ff0000]" />
                                         <span className="text-[11px] font-semibold text-neutral-200">
                                             {viewerCount.toLocaleString()}
                                         </span>
@@ -498,16 +498,16 @@ const GlobalVideoPlayer: React.FC = () => {
 
                         {/* ── Bottom gradient ── */}
                         <div
-                            className={`absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
+                            className={`absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
                         />
 
                         {/* ── Controls bar ── */}
                         <div
-                            className={`absolute inset-x-0 bottom-0 z-20 px-4 pb-3 pt-6 transition-all duration-300 ${showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
+                            className={`absolute inset-x-0 bottom-0 z-20 px-3 pb-1 pt-6 transition-all duration-300 ${showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
                             onClick={(e) => e.stopPropagation()}>
                             {/* VOD scrubber */}
                             {!isLive && !hasError && (
-                                <div className="mb-3">
+                                <div className="mb-0.5 px-1">
                                     <Scrubber
                                         currentTime={currentTime}
                                         duration={duration}
@@ -517,57 +517,59 @@ const GlobalVideoPlayer: React.FC = () => {
                             )}
 
                             {/* Control row */}
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center justify-between gap-3 h-12">
                                 {/* Left cluster */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
                                     <button
                                         onClick={togglePlay}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
+                                        className="w-10 h-10 flex items-center justify-center rounded text-white hover:bg-white/10 transition-all duration-150"
                                         title={isPlaying ? "Pause" : "Play"}>
                                         {isPlaying ? (
-                                            <Pause size={18} fill="currentColor" />
+                                            <Pause size={22} fill="currentColor" />
                                         ) : (
-                                            <Play size={18} fill="currentColor" />
+                                            <Play size={22} fill="currentColor" />
                                         )}
                                     </button>
 
-                                    <button
-                                        onClick={toggleMute}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
-                                        title={isMuted ? "Unmute" : "Mute"}>
-                                        {isMuted || volume === 0 ? (
-                                            <VolumeX size={18} />
-                                        ) : (
-                                            <Volume2 size={18} />
-                                        )}
-                                    </button>
-                                    <VolumeSlider
-                                        value={effectiveVolume}
-                                        onChange={handleVolumeChange}
-                                    />
+                                    <div className="flex items-center group/vol-container">
+                                        <button
+                                            onClick={toggleMute}
+                                            className="w-10 h-10 flex items-center justify-center rounded text-white hover:bg-white/10 transition-all duration-150"
+                                            title={isMuted ? "Unmute" : "Mute"}>
+                                            {isMuted || volume === 0 ? (
+                                                <VolumeX size={20} />
+                                            ) : (
+                                                <Volume2 size={20} />
+                                            )}
+                                        </button>
+                                        <VolumeSlider
+                                            value={effectiveVolume}
+                                            onChange={handleVolumeChange}
+                                        />
+                                    </div>
 
                                     {!isLive && duration > 0 && (
-                                        <span className="text-[11px] font-mono text-neutral-300 ml-1 tabular-nums">
-                                            {fmtTime(currentTime)}{" "}
-                                            <span className="text-neutral-600">/</span>{" "}
-                                            {fmtTime(duration)}
+                                        <span className="text-[13px] text-white ml-2 tabular-nums font-medium drop-shadow-md">
+                                            {fmtTime(currentTime)}
+                                            <span className="text-white/60 mx-1">/</span>
+                                            <span className="text-white/60">{fmtTime(duration)}</span>
                                         </span>
                                     )}
                                 </div>
 
                                 {/* Right cluster */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); navigate('/'); }}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-cyan hover:bg-white/10 transition-all duration-150"
+                                        className="w-10 h-10 flex items-center justify-center rounded text-white hover:bg-white/10 transition-all duration-150"
                                         title="Minimize Player">
-                                        <Minimize size={17} />
+                                        <Minimize size={20} />
                                     </button>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
+                                        className="w-10 h-10 flex items-center justify-center rounded text-white hover:bg-white/10 transition-all duration-150"
                                         title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-                                        {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+                                        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                                     </button>
                                 </div>
                             </div>
