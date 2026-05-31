@@ -285,13 +285,20 @@ func (h *AdminHandler) GetAWSCredentials(c *gin.Context) {
 	region := models.GetSetting(h.DB, "AWS_REGION", "us-east-1")
 	endpoint := models.GetSetting(h.DB, "AWS_ENDPOINT", "")
 
-	hasSecret := secretKey != ""
+	publicVod := models.GetSetting(h.DB, "PUBLIC_VOD_BASE_URL", "")
+	s3Bucket := models.GetSetting(h.DB, "S3_BUCKET_NAME", "")
+	sqsQueue := models.GetSetting(h.DB, "SQS_QUEUE_URL", "")
+	rtmpIngest := models.GetSetting(h.DB, "RTMP_INGEST_URL", "")
 
 	c.JSON(http.StatusOK, gin.H{
-		"aws_access_key_id": accessKey,
-		"aws_region":        region,
-		"aws_endpoint":      endpoint,
-		"has_secret":        hasSecret,
+		"aws_access_key_id":     accessKey,
+		"aws_secret_access_key": secretKey,
+		"aws_region":            region,
+		"aws_endpoint":          endpoint,
+		"public_vod_base_url":   publicVod,
+		"s3_bucket_name":        s3Bucket,
+		"sqs_queue_url":         sqsQueue,
+		"rtmp_ingest_url":       rtmpIngest,
 	})
 }
 

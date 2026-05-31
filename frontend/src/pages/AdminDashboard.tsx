@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Server, Activity, Terminal, AlertTriangle, 
-  Loader2, LogOut, ShieldAlert, Key, ArrowDown
+  Loader2, LogOut, ShieldAlert, Key, ArrowDown,
+  Eye, EyeOff
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { 
@@ -21,6 +22,7 @@ export const AdminDashboard: React.FC = () => {
   
   const [logs, setLogs] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'infra' | 'logs' | 'aws'>('infra');
+  const [showSecret, setShowSecret] = useState(false);
   
   // UX States
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
@@ -263,7 +265,6 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">AWS Configuration</h2>
-                <p className="text-sm text-neutral-400">Manage S3 and SQS credentials for streaming storage.</p>
               </div>
             </div>
 
@@ -280,12 +281,21 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Secret Access Key</label>
-                  <input 
-                    type="password"
-                    {...registerAws("aws_secret_access_key")}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 outline-none transition-all font-mono text-sm"
-                    placeholder="Leave blank to keep existing"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showSecret ? "text" : "password"}
+                      {...registerAws("aws_secret_access_key")}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 outline-none transition-all font-mono text-sm"
+                      placeholder="Leave blank to keep existing"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowSecret(!showSecret)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                    >
+                      {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -310,7 +320,33 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-zinc-800/50">
+              {/* Provisioned Endpoints Section */}
+              <div className="mt-8 pt-8 border-t border-white/10">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+                  <Activity className="w-5 h-5 mr-2 text-purple-400" />
+                  Provisioned Endpoints
+                </h3>
+                <div className="space-y-4">
+                  {[
+                    { label: 'Public VOD Base URL', value: awsConfigData?.public_vod_base_url || 'Not provisioned' },
+                    { label: 'S3 Bucket Name', value: awsConfigData?.s3_bucket_name || 'Not provisioned' },
+                    { label: 'SQS Queue URL', value: awsConfigData?.sqs_queue_url || 'Not provisioned' },
+                    { label: 'RTMP Ingest URL', value: awsConfigData?.rtmp_ingest_url || 'Not provisioned' }
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <div className="sm:w-1/3 text-xs font-bold text-neutral-400 uppercase tracking-wider">{item.label}</div>
+                      <input 
+                        type="text"
+                        disabled
+                        value={item.value}
+                        className="flex-1 bg-white/5 border border-white/5 rounded-lg px-4 py-2.5 text-neutral-300 font-mono text-sm cursor-not-allowed opacity-70"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 mt-6 border-t border-zinc-800/50">
                 <button 
                   type="submit" 
                   disabled={awsSaving}
