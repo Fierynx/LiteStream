@@ -61,6 +61,7 @@ export function useDeleteVod() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["streams"] });
+            queryClient.invalidateQueries({ queryKey: ["channel"] });
         },
     });
 }
@@ -78,6 +79,7 @@ export function useUpdateVodTitle() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["streams"] });
+            queryClient.invalidateQueries({ queryKey: ["channel"] });
         },
     });
 }
