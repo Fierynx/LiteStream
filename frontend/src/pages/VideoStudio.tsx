@@ -98,9 +98,9 @@ export default function VideoStudio() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {vods.map((vod) => (
                             <div key={vod.vod_id} className="bg-surface-850 border border-white/5 rounded-2xl overflow-hidden flex flex-col group hover:border-brand-primary/30 transition-colors shadow-lg">
-                                <div className="aspect-video bg-surface-900 relative">
+                                <div className="relative w-full aspect-video bg-surface-900 shrink-0 overflow-hidden">
                                     {vod.thumbnail_url ? (
-                                        <img src={vod.thumbnail_url} alt="thumbnail" className="w-full h-full object-cover" />
+                                        <img src={vod.thumbnail_url} alt="thumbnail" className="absolute inset-0 w-full h-full object-cover" />
                                     ) : (
                                         <div className="flex items-center justify-center h-full w-full opacity-30">
                                             <ImageIcon size={32} />
