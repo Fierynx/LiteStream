@@ -22,6 +22,7 @@ export function useInfraStatus(adminToken: string) {
             return data;
         },
         enabled: !!adminToken,
+        refetchInterval: 5000,
     });
 }
 
@@ -32,7 +33,7 @@ export function useInfraEvents(adminToken: string) {
             const { data } = await axios.get(`${API}/admin/infra/events`, {
                 headers: { Authorization: `Bearer ${adminToken}` },
             });
-            return data.data;
+            return data;
         },
         enabled: !!adminToken,
         refetchInterval: 5000,
