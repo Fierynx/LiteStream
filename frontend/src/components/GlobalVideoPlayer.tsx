@@ -428,7 +428,7 @@ const GlobalVideoPlayer: React.FC = () => {
                 {isMinimized && (
                     <div className="absolute inset-0 z-30">
                         {/* Top Controls */}
-                        <div className="absolute top-2 left-2 right-2 flex justify-between opacity-0 group-hover/player:opacity-100 transition-opacity duration-200">
+                        <div className="absolute top-2 left-2 right-2 flex justify-between opacity-100 md:opacity-0 md:group-hover/player:opacity-100 transition-opacity duration-200">
                             <button onClick={(e) => { e.stopPropagation(); navigate(streamData.url) }} className="p-1 hover:bg-white/20 rounded text-white backdrop-blur-sm" title="Expand">
                                 <Maximize size={18} />
                             </button>
@@ -437,7 +437,7 @@ const GlobalVideoPlayer: React.FC = () => {
                             </button>
                         </div>
                         {/* Center Play/Pause */}
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/player:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover/player:opacity-100 transition-opacity duration-200 pointer-events-none">
                             <button onClick={(e) => { e.stopPropagation(); togglePlay() }} className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white backdrop-blur transition-all pointer-events-auto shadow-lg border border-white/10">
                                 {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="ml-1" />}
                             </button>
