@@ -46,7 +46,10 @@ func (h *MediaHandler) ThumbnailUpload(c *gin.Context) {
 	}
 	b := make([]byte, 8)
 	rand.Read(b)
-	s3Key := "thumbnails/" + hex.EncodeToString(b) + ext
+	
+	// Upload to vod/thumbnails/ so it aligns with PUBLIC_VOD_BASE_URL which is .../vod
+	s3Key := "vod/thumbnails/" + hex.EncodeToString(b) + ext
+	urlPath := "thumbnails/" + hex.EncodeToString(b) + ext
 
 	contentType := mime.TypeByExtension(ext)
 	if contentType == "" {
@@ -75,7 +78,7 @@ func (h *MediaHandler) ThumbnailUpload(c *gin.Context) {
 	if !strings.HasSuffix(vodBaseURL, "/") {
 		vodBaseURL += "/"
 	}
-	publicURL := fmt.Sprintf("%s%s", vodBaseURL, s3Key)
+	publicURL := fmt.Sprintf("%s%s", vodBaseURL, urlPath)
 
 	h.Logger.Info("Thumbnail uploaded", "key", s3Key, "url", publicURL)
 	c.JSON(http.StatusOK, gin.H{"url": publicURL})
