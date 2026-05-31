@@ -340,13 +340,9 @@ const GlobalVideoPlayer: React.FC = () => {
             position: 'fixed',
             bottom: '24px',
             right: '24px',
-            width: '360px',
-            height: '202px', // 16:9
+            width: '320px',
             zIndex: 50,
-            borderRadius: '12px',
-            overflow: 'hidden',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
         };
     } else if (placeholderRect) {
         style = {
@@ -382,200 +378,211 @@ const GlobalVideoPlayer: React.FC = () => {
     return (
         <div
             ref={containerRef}
-            className="group/player bg-black/50 overflow-hidden cursor-pointer select-none"
+            className={`group/player overflow-hidden cursor-pointer select-none transition-all duration-300 ${isMinimized ? "flex flex-col bg-surface-900 border border-white/10 rounded-xl" : "bg-black/50"}`}
             style={style}
-            onWheel={handleWheel}
-            onMouseMove={resetHideTimer}
-            onMouseEnter={() => setShowControls(true)}
-            onMouseLeave={() => {
+            onWheel={isMinimized ? undefined : handleWheel}
+            onMouseMove={isMinimized ? undefined : resetHideTimer}
+            onMouseEnter={isMinimized ? undefined : () => setShowControls(true)}
+            onMouseLeave={isMinimized ? undefined : () => {
                 if (isPlaying) setShowControls(false);
             }}
             onClick={handleContainerClick}
             onDoubleClick={isMinimized ? undefined : toggleFullscreen}
         >
-            {/* ── Raw video element — NO native controls ── */}
-            <video
-                ref={videoRef}
-                className="absolute inset-0 w-full h-full object-contain bg-black"
-                playsInline
-                poster={streamData.thumbnailUrl}
-            />
+            {/* The Video Area */}
+            <div className={`relative ${isMinimized ? "w-full aspect-video flex-shrink-0 bg-black" : "absolute inset-0 w-full h-full"}`}>
+                {/* ── Raw video element ── */}
+                <video
+                    ref={videoRef}
+                    className="absolute inset-0 w-full h-full object-contain bg-black"
+                    playsInline
+                    poster={streamData.thumbnailUrl}
+                />
 
-            {/* ── Offline / Error placeholder ── */}
-            {hasError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-950/96 backdrop-blur-md z-20 animate-fade-in">
-                    <div className="relative mb-5">
-                        <div className="w-20 h-20 rounded-full bg-surface-800 border border-white/[0.06] flex items-center justify-center">
-                            <WifiOff size={32} className="text-neutral-600" />
-                        </div>
-                        <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-surface-700 border border-surface-800 flex items-center justify-center">
-                            <span className="w-2 h-2 rounded-full bg-neutral-600 animate-pulse" />
-                        </span>
-                    </div>
-                    <p className="text-neutral-200 font-bold text-lg tracking-tight">
-                        {isLive ? "Stream Offline" : "VOD Unavailable"}
-                    </p>
-                    <p className="text-neutral-500 text-sm mt-1.5 flex items-center gap-1.5 animate-pulse">
-                        <Wifi size={12} />
-                        {isLive ? "Waiting for broadcast…" : "Retrying…"}
-                    </p>
-                </div>
-            )}
-
-            {/* ── Top gradient ── */}
-            <div
-                className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent pointer-events-none z-10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
-            />
-
-            {/* ── Top-left: LIVE badge + viewer count + Mini Player Info ── */}
-            <div
-                className={`absolute top-3 left-3 right-3 flex items-start justify-between gap-2 z-20 transition-all duration-300 ${showControls || isMinimized ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"}`}>
-                <div className="flex flex-col gap-1.5 min-w-0">
-                    <div className="flex items-center gap-2">
-                        {isLive && !hasError && (
-                            <div className="flex items-center gap-1.5 bg-red-600 px-2.5 py-1 rounded-md shadow-lg shrink-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                <span className="text-[10px] font-extrabold tracking-[0.15em] uppercase text-white">
-                                    Live
-                                </span>
-                            </div>
+                {/* ── Offline / Error placeholder ── */}
+                {hasError && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-950/96 backdrop-blur-md z-20 animate-fade-in">
+                        {!isMinimized && (
+                            <>
+                                <div className="relative mb-5">
+                                    <div className="w-20 h-20 rounded-full bg-surface-800 border border-white/[0.06] flex items-center justify-center">
+                                        <WifiOff size={32} className="text-neutral-600" />
+                                    </div>
+                                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-surface-700 border border-surface-800 flex items-center justify-center">
+                                        <span className="w-2 h-2 rounded-full bg-neutral-600 animate-pulse" />
+                                    </span>
+                                </div>
+                                <p className="text-neutral-200 font-bold text-lg tracking-tight">
+                                    {isLive ? "Stream Offline" : "VOD Unavailable"}
+                                </p>
+                            </>
                         )}
-                        {viewerCount !== undefined && !hasError && !isMinimized && (
-                            <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-md shrink-0">
-                                <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
-                                <span className="text-[11px] font-semibold text-neutral-200">
-                                    {viewerCount.toLocaleString()}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    {isMinimized && streamData?.username && (
-                        <div className="bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-md border border-white/10 max-w-full">
-                            <span className="text-xs font-bold text-white truncate block">
-                                {streamData.username}
-                            </span>
-                            {streamData.title && (
-                                <span className="text-[10px] text-neutral-300 truncate block mt-0.5">
-                                    {streamData.title}
-                                </span>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ── Center play/pause flash indicator ── */}
-            {!hasError && (
-                <div
-                    className={`absolute inset-0 flex items-center justify-center z-10 pointer-events-none transition-opacity duration-200 ${showControls && !isPlaying ? "opacity-100" : "opacity-0"}`}>
-                    <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center">
-                        <Play
-                            size={28}
-                            className="text-white ml-1"
-                            fill="white"
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* ── Bottom gradient ── */}
-            <div
-                className={`absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
-            />
-
-            {/* ── Controls bar ── */}
-            <div
-                className={`absolute inset-x-0 bottom-0 z-20 px-4 pb-3 pt-6 transition-all duration-300 ${showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
-                onClick={(e) => e.stopPropagation()}>
-                {/* VOD scrubber */}
-                {!isLive && !hasError && (
-                    <div className="mb-3">
-                        <Scrubber
-                            currentTime={currentTime}
-                            duration={duration}
-                            onSeek={handleSeek}
-                        />
+                        <p className={`text-neutral-500 flex items-center gap-1.5 animate-pulse ${isMinimized ? "text-[11px]" : "text-sm mt-1.5"}`}>
+                            <Wifi size={12} />
+                            {isLive ? "Waiting for broadcast…" : "Retrying…"}
+                        </p>
                     </div>
                 )}
-
-                {/* Control row */}
-                <div className="flex items-center justify-between gap-3">
-                    {/* Left cluster */}
-                    <div className="flex items-center gap-2">
-                        {/* Play / Pause */}
-                        <button
-                            onClick={togglePlay}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
-                            title={isPlaying ? "Pause" : "Play"}>
-                            {isPlaying ? (
-                                <Pause size={18} fill="currentColor" />
-                            ) : (
-                                <Play size={18} fill="currentColor" />
-                            )}
-                        </button>
-
-                        {/* Volume */}
-                        <button
-                            onClick={toggleMute}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
-                            title={isMuted ? "Unmute" : "Mute"}>
-                            {isMuted || volume === 0 ? (
-                                <VolumeX size={18} />
-                            ) : (
-                                <Volume2 size={18} />
-                            )}
-                        </button>
-                        <VolumeSlider
-                            value={effectiveVolume}
-                            onChange={handleVolumeChange}
+                
+                {/* ── Minimized UI ── */}
+                {isMinimized && (
+                    <div className="absolute inset-0 z-30">
+                        {/* Top Controls */}
+                        <div className="absolute top-2 left-2 right-2 flex justify-between opacity-0 group-hover/player:opacity-100 transition-opacity duration-200">
+                            <button onClick={(e) => { e.stopPropagation(); navigate(streamData.url) }} className="p-1 hover:bg-white/20 rounded text-white backdrop-blur-sm" title="Expand">
+                                <Maximize size={18} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); stopStream() }} className="p-1 hover:bg-white/20 rounded text-white backdrop-blur-sm" title="Close">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        {/* Center Play/Pause */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/player:opacity-100 transition-opacity duration-200 pointer-events-none">
+                            <button onClick={(e) => { e.stopPropagation(); togglePlay() }} className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white backdrop-blur transition-all pointer-events-auto shadow-lg border border-white/10">
+                                {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="ml-1" />}
+                            </button>
+                        </div>
+                        {/* Bottom Progress */}
+                        {!isLive && duration > 0 && (
+                            <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20">
+                                <div className="h-full bg-red-600" style={{ width: `${(currentTime / duration) * 100}%` }} />
+                            </div>
+                        )}
+                    </div>
+                )}
+                
+                {/* ── Normal UI ── */}
+                {!isMinimized && (
+                    <>
+                        {/* ── Top gradient ── */}
+                        <div
+                            className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent pointer-events-none z-10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
                         />
 
-                        {/* VOD time display */}
-                        {!isLive && duration > 0 && (
-                            <span className="text-[11px] font-mono text-neutral-300 ml-1 tabular-nums">
-                                {fmtTime(currentTime)}{" "}
-                                <span className="text-neutral-600">/</span>{" "}
-                                {fmtTime(duration)}
-                            </span>
-                        )}
-                    </div>
+                        {/* ── Top-left: LIVE badge + viewer count ── */}
+                        <div
+                            className={`absolute top-3 left-3 right-3 flex items-start justify-between gap-2 z-20 transition-all duration-300 ${showControls ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"}`}>
+                            <div className="flex items-center gap-2">
+                                {isLive && !hasError && (
+                                    <div className="flex items-center gap-1.5 bg-red-600 px-2.5 py-1 rounded-md shadow-lg shrink-0">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                        <span className="text-[10px] font-extrabold tracking-[0.15em] uppercase text-white">
+                                            Live
+                                        </span>
+                                    </div>
+                                )}
+                                {viewerCount !== undefined && !hasError && (
+                                    <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-md shrink-0">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
+                                        <span className="text-[11px] font-semibold text-neutral-200">
+                                            {viewerCount.toLocaleString()}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
-                    {/* Right cluster */}
-                    <div className="flex items-center gap-2">
-                        {isMinimized ? (
-                            <>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); navigate(streamData?.url || "/"); }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-cyan hover:bg-white/10 transition-all duration-150"
-                                    title="Expand">
-                                    <Maximize size={17} />
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); stopStream(); }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-red-500 hover:bg-white/10 transition-all duration-150"
-                                    title="Close">
-                                    <X size={17} />
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); navigate('/'); }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-cyan hover:bg-white/10 transition-all duration-150"
-                                    title="Minimize Player">
-                                    <Minimize size={17} />
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
-                                    title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-                                    {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
-                                </button>
-                            </>
+                        {/* ── Center play/pause flash indicator ── */}
+                        {!hasError && (
+                            <div
+                                className={`absolute inset-0 flex items-center justify-center z-10 pointer-events-none transition-opacity duration-200 ${showControls && !isPlaying ? "opacity-100" : "opacity-0"}`}>
+                                <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center">
+                                    <Play
+                                        size={28}
+                                        className="text-white ml-1"
+                                        fill="white"
+                                    />
+                                </div>
+                            </div>
                         )}
-                    </div>
-                </div>
+
+                        {/* ── Bottom gradient ── */}
+                        <div
+                            className={`absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
+                        />
+
+                        {/* ── Controls bar ── */}
+                        <div
+                            className={`absolute inset-x-0 bottom-0 z-20 px-4 pb-3 pt-6 transition-all duration-300 ${showControls ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
+                            onClick={(e) => e.stopPropagation()}>
+                            {/* VOD scrubber */}
+                            {!isLive && !hasError && (
+                                <div className="mb-3">
+                                    <Scrubber
+                                        currentTime={currentTime}
+                                        duration={duration}
+                                        onSeek={handleSeek}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Control row */}
+                            <div className="flex items-center justify-between gap-3">
+                                {/* Left cluster */}
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={togglePlay}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
+                                        title={isPlaying ? "Pause" : "Play"}>
+                                        {isPlaying ? (
+                                            <Pause size={18} fill="currentColor" />
+                                        ) : (
+                                            <Play size={18} fill="currentColor" />
+                                        )}
+                                    </button>
+
+                                    <button
+                                        onClick={toggleMute}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
+                                        title={isMuted ? "Unmute" : "Mute"}>
+                                        {isMuted || volume === 0 ? (
+                                            <VolumeX size={18} />
+                                        ) : (
+                                            <Volume2 size={18} />
+                                        )}
+                                    </button>
+                                    <VolumeSlider
+                                        value={effectiveVolume}
+                                        onChange={handleVolumeChange}
+                                    />
+
+                                    {!isLive && duration > 0 && (
+                                        <span className="text-[11px] font-mono text-neutral-300 ml-1 tabular-nums">
+                                            {fmtTime(currentTime)}{" "}
+                                            <span className="text-neutral-600">/</span>{" "}
+                                            {fmtTime(duration)}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Right cluster */}
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); navigate('/'); }}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-cyan hover:bg-white/10 transition-all duration-150"
+                                        title="Minimize Player">
+                                        <Minimize size={17} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-white hover:text-neon-green hover:bg-white/10 transition-all duration-150"
+                                        title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
+                                        {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* Bottom Info Bar for Minimized View */}
+            {isMinimized && (
+                <div className="px-3 py-2.5 bg-surface-800 flex flex-col justify-center flex-1 shrink-0 z-20">
+                    <div className="text-[13px] font-bold text-white truncate leading-tight">{streamData.title || "Untitled Stream"}</div>
+                    <div className="text-[11px] text-neutral-400 truncate mt-0.5">{streamData.username}</div>
+                </div>
+            )}
         </div>
     );
 };
