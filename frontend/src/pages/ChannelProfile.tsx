@@ -181,9 +181,9 @@ export default function ChannelProfile() {
                                                     />
                                                 </div>
                                             </div>
-                                            {formatDuration(vod.CreatedAt, undefined) && (
+                                            {formatDuration(vod.started_at || vod.CreatedAt, vod.ended_at) && (
                                                 <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[11px] font-bold px-1.5 py-0.5 rounded z-10">
-                                                    {formatDuration(vod.CreatedAt, undefined)}
+                                                    {formatDuration(vod.started_at || vod.CreatedAt, vod.ended_at)}
                                                 </div>
                                             )}
                                         </div>

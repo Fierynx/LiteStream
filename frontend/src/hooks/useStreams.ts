@@ -11,6 +11,8 @@ export interface StreamItem {
     status: "live" | "vod";
     views: number;
     CreatedAt: string;
+    started_at?: string;
+    ended_at?: string;
     vod_id?: string;
     stream_key?: string;
     video_offset?: number;
@@ -23,6 +25,8 @@ export interface ChannelInfo {
     vod_id?: string;
     thumbnail_url: string;
     status: "offline" | "live" | "vod";
+    started_at?: string;
+    ended_at?: string;
 }
 
 export function useStreams() {

@@ -105,7 +105,7 @@ function LiveCard({ stream }: { stream: StreamRecord }) {
 
 /* ─── VOD Card ─── */
 function VodCard({ stream }: { stream: StreamRecord }) {
-    const durationStr = formatDuration(stream.CreatedAt, undefined);
+    const durationStr = formatDuration(stream.started_at || stream.CreatedAt, stream.ended_at);
 
     return (
         <Link to={`/vod/${stream.stream_key}`} className="group block">

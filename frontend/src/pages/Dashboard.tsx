@@ -67,8 +67,12 @@ export function ThumbnailUploadZone({
                 setDone(true);
                 setTimeout(() => setDone(false), 3000);
             },
-            onError: () => {
-                setError("Upload failed. Is the backend running?");
+            onError: (err: any) => {
+                if (err.response?.status === 413) {
+                    setError("File is too large. Please upload an image smaller than 10MB.");
+                } else {
+                    setError(err.response?.data?.error || "Upload failed. Please try again.");
+                }
                 setPreview(currentUrl); // revert
             }
         });

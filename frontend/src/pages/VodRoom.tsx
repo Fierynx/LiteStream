@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import ViewingRoom from "../components/ViewingRoom";
 import type { ChatMsg } from "../components/ChatSidebar";
@@ -33,8 +33,11 @@ export default function VodRoom() {
     const vID = channel?.vod_id || channel?.stream_key || vodId;
     const { data: rawMessages, isSuccess: chatLoaded } = useChatHistory(vID, !!channel);
 
+    const incrementedRef = useRef<Set<string>>(new Set());
+
     useEffect(() => {
-        if (channel) {
+        if (channel && vID && !incrementedRef.current.has(vID)) {
+            incrementedRef.current.add(vID);
             incrementView(vID);
         }
     }, [channel, vID, incrementView]);
