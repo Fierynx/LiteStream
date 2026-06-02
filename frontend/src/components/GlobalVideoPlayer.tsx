@@ -10,6 +10,7 @@ import {
     Wifi,
     WifiOff,
     X,
+    PictureInPicture2,
 } from "lucide-react";
 
 /* ─── Utility: format seconds → m:ss or h:mm:ss ─── */
@@ -559,12 +560,15 @@ const GlobalVideoPlayer: React.FC = () => {
 
                                 {/* Right cluster */}
                                 <div className="flex items-center gap-1">
+                                { /* Only show PiP minimize if not in fullscreen */ }
+                                {!isFullscreen && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); navigate('/'); }}
                                         className="w-10 h-10 flex items-center justify-center rounded text-white hover:bg-white/10 transition-all duration-150"
-                                        title="Minimize Player">
-                                        <Minimize size={20} />
+                                        title="Miniplayer">
+                                        <PictureInPicture2 size={20} />
                                     </button>
+                                )}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
                                         className="w-10 h-10 flex items-center justify-center rounded text-white hover:bg-white/10 transition-all duration-150"
