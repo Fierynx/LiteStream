@@ -67,31 +67,35 @@ function Thumbnail({
 /* ─── Live Stream Card ─── */
 function LiveCard({ stream }: { stream: StreamRecord }) {
     return (
-        <Link to={`/live/${stream.username}`} className="group block">
+        <div className="group block">
             <div className="relative rounded-lg overflow-hidden border border-white/5 bg-surface-850 hover:border-brand-primary/50 transition-colors duration-200">
-                <Thumbnail
-                    url={stream.thumbnail_url}
-                    accent={VOD_ACCENTS[0]}
-                    overlay={
-                        <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-brand-danger text-white text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded z-10">
-                            LIVE
-                        </div>
-                    }
-                />
+                <Link to={`/live/${stream.username}`} className="block">
+                    <Thumbnail
+                        url={stream.thumbnail_url}
+                        accent={VOD_ACCENTS[0]}
+                        overlay={
+                            <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-brand-danger text-white text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded z-10">
+                                LIVE
+                            </div>
+                        }
+                    />
+                </Link>
 
                 {/* Info */}
                 <div className="p-3">
                     <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-surface-800 border border-white/10 shrink-0 flex items-center justify-center text-sm font-bold text-white uppercase">
+                        <Link to={`/channel/${stream.username}`} onClick={(e) => e.stopPropagation()} className="w-10 h-10 rounded-full bg-surface-800 border border-white/10 shrink-0 flex items-center justify-center text-sm font-bold text-white uppercase hover:border-white/30 transition-colors">
                             {stream.username?.charAt(0) ?? "?"}
-                        </div>
+                        </Link>
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-neutral-100 truncate leading-tight group-hover:text-brand-primary transition-colors duration-200">
-                                {stream.title || "Untitled Stream"}
-                            </p>
-                            <p className="text-[13px] text-neutral-400 mt-0.5 hover:text-neutral-200 transition-colors">
+                            <Link to={`/live/${stream.username}`} className="block">
+                                <p className="text-sm font-semibold text-neutral-100 truncate leading-tight group-hover:text-brand-primary transition-colors duration-200">
+                                    {stream.title || "Untitled Stream"}
+                                </p>
+                            </Link>
+                            <Link to={`/channel/${stream.username}`} onClick={(e) => e.stopPropagation()} className="text-[13px] text-neutral-400 mt-0.5 hover:text-neutral-200 transition-colors block">
                                 {stream.username}
-                            </p>
+                            </Link>
                             <div className="flex items-center gap-1 mt-1 text-xs text-neutral-500 font-medium">
                                 <span>{formatViews(stream.views)} • Streaming {formatTimeAgo(stream.CreatedAt)}</span>
                             </div>
@@ -99,9 +103,10 @@ function LiveCard({ stream }: { stream: StreamRecord }) {
                     </div>
                 </div>
             </div>
-        </Link>
+        </div>
     );
 }
+
 
 /* ─── VOD Card ─── */
 function VodCard({ stream }: { stream: StreamRecord }) {
