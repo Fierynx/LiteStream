@@ -125,14 +125,7 @@ export default function ChatSidebar({
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {isReplayMode ? (
-                    /* VOD: show current playback timestamp */
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-700/60 border border-white/[0.04]">
-                        <span className="text-[10px] font-mono text-neutral-500 tabular-nums">
-                            {fmtTime(playbackTime)}
-                        </span>
-                    </div>
-                ) : (
+                    {!isReplayMode && (
                     /* Live: show connection dot */
                     <div className="flex items-center gap-1.5">
                         <span
@@ -225,14 +218,14 @@ export default function ChatSidebar({
                     isReplayMode &&
                     messages.filter((m) => (m.videoOffset ?? 0) <= playbackTime)
                         .length === 0 && (
-                        <p className="text-xs text-neutral-600 text-center mt-12">
+                        <p className="text-[11px] text-neutral-500 italic text-center mt-4">
                             Chat will appear as the video plays…
                         </p>
                     )}
 
                 {/* System Message */}
                 {historyLoaded && messages.length > 0 && (
-                    <div className="text-[12px] leading-relaxed animate-slide-up bg-surface-700/30 rounded-md px-3 py-2.5 border border-white/[0.05] text-neutral-400 !mb-4 mt-2">
+                    <div className="text-[11px] text-neutral-500 italic px-2 py-1 mb-2 mt-2 text-center">
                         Welcome to the chat room! Be respectful and follow the rules.
                     </div>
                 )}
@@ -249,8 +242,8 @@ export default function ChatSidebar({
                         className="text-[13px] leading-relaxed animate-slide-up group/msg hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors duration-150">
                         {/* Timestamp for replay */}
                         {isReplayMode && msg.videoOffset !== undefined && (
-                            <span className="text-[10px] font-mono text-neutral-700 mr-1.5 tabular-nums">
-                                [{fmtTime(msg.videoOffset)}]
+                            <span className="text-[10px] font-mono text-neutral-500 mr-1.5 tabular-nums">
+                                {fmtTime(msg.videoOffset)}
                             </span>
                         )}
                         {msg.user === channelUsername && (
@@ -277,36 +270,7 @@ export default function ChatSidebar({
 
                 <div ref={chatEndRef} className="h-2" />
 
-                {/* VOD progress bar */}
-                {isReplayMode && historyLoaded && messages.length > 0 && (
-                    <div className="mt-4 px-3 py-2 rounded-lg bg-surface-800/60 border border-white/[0.04]">
-                        <div className="flex items-center justify-between text-[10px] text-neutral-600 mb-1.5">
-                            <span>Replay progress</span>
-                            <span className="font-mono tabular-nums">
-                                {
-                                    messages.filter(
-                                        (m) =>
-                                            (m.videoOffset ?? 0) <=
-                                            playbackTime,
-                                    ).length
-                                }
-                                {" / "}
-                                {messages.length}
-                            </span>
-                        </div>
-                        <div className="h-0.5 rounded-full bg-surface-600 overflow-hidden">
-                            <div
-                                className="h-full bg-neon-cyan/60 rounded-full transition-all duration-300"
-                                style={{
-                                    width:
-                                        messages.length > 0
-                                            ? `${(messages.filter((m) => (m.videoOffset ?? 0) <= playbackTime).length / messages.length) * 100}%`
-                                            : "0%",
-                                }}
-                            />
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Live: connection status */}
                 {isLiveMode && historyLoaded && (
