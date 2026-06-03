@@ -102,7 +102,7 @@ export default function ChannelInfoBar({
                             {title || "Untitled Stream"}
                         </h1>
                         <Link
-                            to={`/live/${username}`}
+                            to={`/channel/${username}`}
                             className="text-neon-green font-semibold text-sm hover:underline mt-0.5 block">
                             {username}
                         </Link>
