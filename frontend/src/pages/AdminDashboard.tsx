@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Server, Activity, Terminal, AlertTriangle, 
   Loader2, LogOut, ShieldAlert, Key, ArrowDown,
   Eye, EyeOff
 } from 'lucide-react';
+import axios from 'axios';
 import { useForm } from 'react-hook-form';
 import { 
   useAdminLogin, useInfraStatus, useInfraEvents, 
@@ -51,10 +52,24 @@ export const AdminDashboard: React.FC = () => {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('adminToken');
     setToken(null);
-  };
+  }, []);
+
+  // Auto-logout on 401 (expired token)
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err.response?.status === 401 && localStorage.getItem('adminToken')) {
+          handleLogout();
+        }
+        return Promise.reject(err);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptorId);
+  }, [handleLogout]);
 
   // Infrastructure API
   const { data: statusData } = useInfraStatus(token ?? '');
